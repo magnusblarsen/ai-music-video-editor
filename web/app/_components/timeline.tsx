@@ -1,7 +1,6 @@
 "use client";
-import { Box, Paper, Typography } from "@mui/material";
+import { Box, Button, Paper, Typography } from "@mui/material";
 import React, { useRef, useState, useMemo, useEffect } from "react";
-
 
 type Track = { id: string; name: string };
 
@@ -163,8 +162,6 @@ export default function Timeline({ durationSec = 120, tracks = defaultTracks }: 
       return;
     }
 
-    // Normal wheel = pan timeline horizontally
-    // (use deltaY for mouse wheels; also respect deltaX for trackpads)
     e.preventDefault();
     scroller.scrollLeft += e.deltaX !== 0 ? e.deltaX : e.deltaY;
   };
@@ -172,84 +169,91 @@ export default function Timeline({ durationSec = 120, tracks = defaultTracks }: 
 
 
   return (
-    <Paper variant="outlined" sx={{ overflow: "hidden" }}>
-      <Box
-        ref={scrollRef}
-        onClick={onSeek}
-        onWheel={onWheel}
-        sx={{
-          position: "relative",
-          width: "100%",
-          overflowX: "auto",
-          whiteSpace: "nowrap",
-          flex: 1,
-          cursor: "text"
-        }}>
-        {/* Ruler */}
-        <Box sx={{ position: "relative", height: rulerHeight, width: totalWidthPx, borderBottom: "1px solid", borderColor: "divider" }}>
-          <Ruler
-            durationSec={durationSec}
-            pxPerSecond={pxPerSecond}
-            majorStepSec={majorStepSec}
-            minorStepSec={minorStepSec}
-            rulerHeight={rulerHeight}
-          />
-        </Box>
-
-        {/* Tracks area */}
+    <Box className="flex flex-col flex-1 min-h-0 p-2">
+      <Box className="flex justify-end">
+        <Typography>{formatTime(currentTime)}</Typography>
+        <Typography color="text.secondary" className="mx-1">/</Typography>
+        <Typography color="text.secondary">{formatTime(durationSec)}</Typography>
+      </Box>
+      <Paper variant="outlined" className="overflow-hidden">
         <Box
+          ref={scrollRef}
+          onClick={onSeek}
+          onWheel={onWheel}
           sx={{
             position: "relative",
-            width: totalWidthPx,
-            height: tracks.length * trackHeight,
-            bgcolor: "background.default",
-          }}
-        >
-          {tracks.map((t, i) => (
+            width: "100%",
+            overflowX: "auto",
+            whiteSpace: "nowrap",
+            flex: 1,
+            cursor: "text"
+          }}>
+          {/* Ruler */}
+          <Box sx={{ position: "relative", height: rulerHeight, width: totalWidthPx, borderBottom: "1px solid", borderColor: "divider" }}>
+            <Ruler
+              durationSec={durationSec}
+              pxPerSecond={pxPerSecond}
+              majorStepSec={majorStepSec}
+              minorStepSec={minorStepSec}
+              rulerHeight={rulerHeight}
+            />
+          </Box>
+
+          {/* Tracks area */}
+          <Box
+            sx={{
+              position: "relative",
+              width: totalWidthPx,
+              height: tracks.length * trackHeight,
+              bgcolor: "background.default",
+            }}
+          >
+            {tracks.map((t, i) => (
+              <Box
+                key={t.id}
+                sx={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: i * trackHeight,
+                  height: trackHeight,
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                }}
+              />
+            ))}
+
+            {/* Playhead */}
             <Box
-              key={t.id}
+              onPointerDown={onPlayheadPointerDown}
+              onPointerMove={onPlayheadPointerMove}
+              onPointerUp={onPlayheadPointerUp}
               sx={{
                 position: "absolute",
-                left: 0,
-                right: 0,
-                top: i * trackHeight,
-                height: trackHeight,
-                borderBottom: "1px solid",
-                borderColor: "divider",
+                top: 0,
+                left: playheadX,
+                height: "100%",
+                width: 0,
+                borderLeft: "2px solid",
+                borderColor: "primary.main",
+                cursor: "ew-resize",
+                // add a grab handle at top
+                "&::before": {
+                  content: '""',
+                  position: "absolute",
+                  top: -rulerHeight,
+                  left: -6,
+                  width: 12,
+                  height: 12,
+                  borderRadius: "2px",
+                  bgcolor: "primary.main",
+                },
               }}
             />
-          ))}
-
-          {/* Playhead */}
-          <Box
-            onPointerDown={onPlayheadPointerDown}
-            onPointerMove={onPlayheadPointerMove}
-            onPointerUp={onPlayheadPointerUp}
-            sx={{
-              position: "absolute",
-              top: 0,
-              left: playheadX,
-              height: "100%",
-              width: 0,
-              borderLeft: "2px solid",
-              borderColor: "primary.main",
-              cursor: "ew-resize",
-              // add a grab handle at top
-              "&::before": {
-                content: '""',
-                position: "absolute",
-                top: -rulerHeight,
-                left: -6,
-                width: 12,
-                height: 12,
-                borderRadius: "2px",
-                bgcolor: "primary.main",
-              },
-            }}
-          />
+          </Box>
         </Box>
-      </Box>
-    </Paper>
+      </Paper>
+    </Box>
   )
 }
 

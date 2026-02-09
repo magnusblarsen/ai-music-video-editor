@@ -34,9 +34,7 @@ export default function HomeClient({ initialData }: { initialData: TestData }) {
         </Box>
       </Box>
 
-      <Box sx={{ flex: 1, display: "flex", minHeight: 0, p: 2 }}>
-        <Timeline />
-      </Box>
+      <Timeline />
     </Box>
   )
 }
