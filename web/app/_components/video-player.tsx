@@ -84,7 +84,7 @@ export default function VideoPlayer({ src }: { src: string }) {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ flex: 1, minHeight: 0, mt: 2 }}>
+      <Box sx={{ flex: 1, minHeight: 0 }}>
         <video
           ref={videoRef}
           src={src}
@@ -98,12 +98,13 @@ export default function VideoPlayer({ src }: { src: string }) {
           }}
         />
       </Box>
+
       <Box sx={{ display: "flex", gap: 8, mt: 2 }}>
         <Button onClick={play}>Play</Button>
         <Button onClick={pause}>Pause</Button>
         <Button onClick={() => seekTo(10)}>Test seek</Button>
+        <Typography>time: {time.toFixed(3)}s</Typography>
       </Box>
-      <Typography>time: {time.toFixed(3)}s</Typography>
     </Box>
   );
 }
