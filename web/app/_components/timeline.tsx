@@ -1,5 +1,5 @@
 "use client";
-import { Box, Button, Paper, Typography } from "@mui/material";
+import { Box, Paper, Typography } from "@mui/material";
 import React, { useRef, useState, useMemo, useEffect } from "react";
 
 type Track = { id: string; name: string };
@@ -20,7 +20,7 @@ const defaultTracks: Track[] = [
   { id: "a1", name: "Audio 1" },
 ]
 
-export default function Timeline({ durationSec = 120, tracks = defaultTracks }: { durationSec?: number; tracks?: Track[] }) {
+export default function Timeline({ time, seekTo, durationSec = 120, tracks = defaultTracks }: { time: number, seekTo: (seconds: number) => void, durationSec?: number; tracks?: Track[] }) {
   const rulerHeight = 30
   const trackHeight = 50
 
@@ -29,9 +29,7 @@ export default function Timeline({ durationSec = 120, tracks = defaultTracks }: 
   const viewportWidthRef = useRef(0);
 
   const [pxPerSecond, setPxPerSecond] = useState(80)
-  const [currentTime, setCurrentTime] = useState(5)
   const [viewportWidth, setViewportWidth] = useState(0);
-
 
 
   const minPxPerSecond = useMemo(() => {
@@ -55,7 +53,7 @@ export default function Timeline({ durationSec = 120, tracks = defaultTracks }: 
       if (!didInitZoomRef.current) {
         didInitZoomRef.current = true;
         viewportWidthRef.current = clientWidth;
-        const initialZoom = Math.max(0.5, clientWidth / durationSec); // NOTE: duplicate logic with minPxPerSecond
+        const initialZoom = Math.max(0.5, clientWidth / durationSec);
         setPxPerSecond(initialZoom);
         el.scrollTo({ left: 0 })
       }
@@ -85,7 +83,7 @@ export default function Timeline({ durationSec = 120, tracks = defaultTracks }: 
   const timeToX = (t: number) => t * pxPerSecond;
   const xToTime = (x: number) => x / pxPerSecond;
 
-  const playheadX = timeToX(currentTime);
+  const playheadX = timeToX(time);
 
   const onSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const scroller = scrollRef.current;
@@ -95,7 +93,7 @@ export default function Timeline({ durationSec = 120, tracks = defaultTracks }: 
     const xInView = e.clientX - rect.left;
     const x = scroller.scrollLeft + xInView;
     const time = clamp(xToTime(x), 0, durationSec);
-    setCurrentTime(time);
+    seekTo(time);
   }
 
   useEffect(() => {
@@ -116,7 +114,7 @@ export default function Timeline({ durationSec = 120, tracks = defaultTracks }: 
 
   const onPlayheadPointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    dragRef.current = { dragging: true, startX: e.clientX, startT: currentTime };
+    dragRef.current = { dragging: true, startX: e.clientX, startT: time };
     e.preventDefault();
   };
 
@@ -126,7 +124,7 @@ export default function Timeline({ durationSec = 120, tracks = defaultTracks }: 
     if (!scroller) return;
 
     const dt = xToTime(e.clientX - dragRef.current.startX);
-    setCurrentTime(clamp(dragRef.current.startT + dt, 0, durationSec));
+    seekTo(clamp(dragRef.current.startT + dt, 0, durationSec));
   };
 
   const onPlayheadPointerUp = (e: React.PointerEvent) => {
@@ -171,7 +169,7 @@ export default function Timeline({ durationSec = 120, tracks = defaultTracks }: 
   return (
     <Box className="flex flex-col flex-1 min-h-0 p-2">
       <Box className="flex justify-end">
-        <Typography>{formatTime(currentTime)}</Typography>
+        <Typography>{formatTime(time)}</Typography>
         <Typography color="text.secondary" className="mx-1">/</Typography>
         <Typography color="text.secondary">{formatTime(durationSec)}</Typography>
       </Box>
@@ -188,7 +186,6 @@ export default function Timeline({ durationSec = 120, tracks = defaultTracks }: 
             flex: 1,
             cursor: "text"
           }}>
-          {/* Ruler */}
           <Box sx={{ position: "relative", height: rulerHeight, width: totalWidthPx, borderBottom: "1px solid", borderColor: "divider" }}>
             <Ruler
               durationSec={durationSec}
@@ -199,7 +196,6 @@ export default function Timeline({ durationSec = 120, tracks = defaultTracks }: 
             />
           </Box>
 
-          {/* Tracks area */}
           <Box
             sx={{
               position: "relative",
@@ -223,7 +219,6 @@ export default function Timeline({ durationSec = 120, tracks = defaultTracks }: 
               />
             ))}
 
-            {/* Playhead */}
             <Box
               onPointerDown={onPlayheadPointerDown}
               onPointerMove={onPlayheadPointerMove}

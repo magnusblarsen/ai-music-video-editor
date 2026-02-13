@@ -1,13 +1,10 @@
 "use client";
 
 import { Box, Button, Typography } from "@mui/material";
-import { useRef, useCallback, useState, useEffect } from "react";
+import { useRef, useEffect } from "react";
 
-export default function VideoPlayer({ src }: { src: string }) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+export default function VideoPlayer({ time, setTime, src, play, pause, seekTo, videoRef }: { time: number, setTime: (seconds: number) => void, src: string, play: () => void, pause: () => void, seekTo: (seconds: number) => void, videoRef: React.RefObject<HTMLVideoElement | null> }) {
   const requestId = useRef<number | null>(null);
-  const [time, setTime] = useState(0);
-
 
   useEffect(() => {
     const v = videoRef.current;
@@ -60,27 +57,6 @@ export default function VideoPlayer({ src }: { src: string }) {
     }
   }, [])
 
-
-  const play = useCallback(async () => {
-    const v = videoRef.current;
-    if (!v) return;
-    try {
-      await v.play();
-    } catch (e) {
-      // Autoplay policies can block play() unless initiated by user interaction
-      console.error(e);
-    }
-  }, []);
-
-  const pause = useCallback(() => {
-    videoRef.current?.pause();
-  }, []);
-
-  const seekTo = useCallback((seconds: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.currentTime = Math.max(0, seconds);
-  }, []);
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
