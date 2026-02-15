@@ -1,5 +1,5 @@
 from typing import Annotated
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from pathlib import Path
 import uuid
 import os
@@ -12,6 +12,9 @@ load_dotenv()
 
 app = FastAPI(title="Video Generation API")
 
+
+# TODO: type for task status
+TASKS = {}  # Redis + Celery / RQ / Dramatiq
 
 STAGING_DIR = Path("/tmp/uploads")  # on your backend server
 STAGING_DIR.mkdir(parents=True, exist_ok=True)
@@ -43,13 +46,15 @@ async def test_ssh():
 
 
 @app.post("/upload-audio")
-async def upload_audio(file: UploadFile):
+async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[UploadFile, File()]):
     if not file.content_type or not file.content_type.startswith("audio/"):
         raise HTTPException(status_code=400, detail=f"Expected audio/*, got {file.content_type}")
 
     ext = Path(file.filename).suffix if file.filename else ""
     audio_id = str(uuid.uuid4())
     local_path = STAGING_DIR / f"{audio_id}{ext}"
+
+    TASKS[audio_id] = {"status": "queued", "error": None}
 
     # Save upload to local disk (streamed)
     try:
@@ -67,21 +72,51 @@ async def upload_audio(file: UploadFile):
     remote_audio_path = f"{remote_dir}/input{ext}"
     remote_job_script = f"{remote_dir}/job.sbatch"
 
-    try:
-        await _copy_and_submit(
-            local_path=str(local_path),
-            remote_dir=remote_dir,
-            remote_audio_path=remote_audio_path,
-            remote_job_script=remote_job_script,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"HPC transfer/submit failed: {e}")
+    background_tasks.add_task(
+        _copy_and_submit_with_status,
+        local_path=str(local_path),
+        remote_dir=remote_dir,
+        remote_audio_path=remote_audio_path,
+        remote_job_script=remote_job_script,
+    )
 
     return {
         "audio_id": audio_id,
         "remote_audio_path": remote_audio_path,
-        "status": "uploaded_and_submitted",
+        "status": "queued",
     }
+
+
+@app.get("/status/{audio_id}")
+async def get_status(audio_id: str):
+    task = TASKS.get(audio_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Not found")
+    return task
+
+
+async def _copy_and_submit_with_status(
+    audio_id: str,
+    local_path: str,
+    remote_dir: str,
+    remote_audio_path: str,
+    remote_job_script: str,
+):
+    try:
+        TASKS[audio_id]["status"] = "running"
+
+        await _copy_and_submit(
+            local_path,
+            remote_dir,
+            remote_audio_path,
+            remote_job_script,
+        )
+
+        TASKS[audio_id]["status"] = "done"
+
+    except Exception as e:
+        TASKS[audio_id]["status"] = "failed"
+        TASKS[audio_id]["error"] = str(e)
 
 
 async def _copy_and_submit(local_path: str, remote_dir: str, remote_audio_path: str, remote_job_script: str):
@@ -93,8 +128,8 @@ async def _copy_and_submit(local_path: str, remote_dir: str, remote_audio_path: 
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
 #SBATCH --partition=dgx1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=96G
+#SBATCH --cpus-per-task=8 # 16
+#SBATCH --mem=32G # 96G
 
 
 set -euo pipefail
@@ -130,5 +165,6 @@ python main.py
             await sftp.put(str(tmp_local_job), remote_job_script)
             tmp_local_job.unlink(missing_ok=True)
 
-        result = await conn.run(f"sbatch {remote_job_script}", check=True)
+        # result = await conn.run(f"sbatch {remote_job_script}", check=True)
+        result = await conn.run(f"ls {remote_dir}", check=True)
         print(f"SLURM submission result: {result.stdout}")

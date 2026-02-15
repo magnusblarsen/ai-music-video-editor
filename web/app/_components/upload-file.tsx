@@ -1,11 +1,10 @@
 "use client";
 
-import InputContainer from "@/components/input-container";
 import { Box, Button, Typography } from "@mui/material";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-export default function UploadFile() {
+export default function UploadFile({ onUploaded }: { onUploaded: (id: string) => void }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,6 +38,7 @@ export default function UploadFile() {
       }
 
       setResult(data);
+      onUploaded(data.audio_id)
     } catch (e: any) {
       toast.error(`Upload failed: ${e.message}`);
     } finally {
@@ -47,33 +47,29 @@ export default function UploadFile() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 12, maxWidth: 520 }}>
+    <Box className="flex flex-col items-start border-2 p-4 gap-4 rounded border-gray-300">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="audio/*"
+        hidden
+        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+      />
+      <Button variant="contained" onClick={handleSelectClick}>
+        {file ? "Change audio file" : "Select audio file"}
+      </Button>
 
-      <InputContainer label="Upload audio file" float="top">
-        <input
-          ref={inputRef}
-          type="file"
-          accept="audio/*"
-          hidden
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-        />
-        <Button variant="contained" onClick={handleSelectClick}>
-          {file ? "Change file" : "Select file"}
-        </Button>
+      {file && (
+        <Typography variant="body2">
+          Selected: {file.name}
+        </Typography>
+      )}
 
-        {file && (
-          <Typography variant="body2">
-            Selected: {file.name}
-          </Typography>
-        )}
-
-        <Button variant="outlined" onClick={upload} disabled={!file || busy}>
-          {busy ? "Uploading..." : "Upload"}
-        </Button>
-
-      </InputContainer>
-
+      <Button variant="outlined" onClick={upload} disabled={!file || busy}>
+        {busy ? "Uploading..." : "Upload"}
+      </Button>
       {result && <pre>{JSON.stringify(result, null, 2)}</pre>}
-    </div>
+    </Box>
+
   )
 }

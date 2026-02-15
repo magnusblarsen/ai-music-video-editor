@@ -3,17 +3,68 @@
 import { Typography, Box, Switch } from "@mui/material";
 import VideoPlayer from "./video-player";
 import InputContainer from "@/components/input-container";
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import { TestData } from "@/types";
 import Timeline from "./timeline";
 import UploadFile from "./upload-file";
 
+
+
+type JobStatus = {
+  status: "queued" | "running" | "done" | "failed" | string;
+  error?: string | null;
+}
 
 export default function HomeClient({ initialData }: { initialData: TestData }) {
   const [example, setExample] = useState(initialData)
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [time, setTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  const [audioId, setAudioId] = useState<string | null>(null);
+  const [job, setJob] = useState<JobStatus | null>(null);
+
+  // TODO: in the future: tanstack query
+  // useQuery({
+  //   queryKey: ["status", audioId],
+  //   queryFn: () => fetchStatus(audioId),
+  //   enabled: !!audioId,
+  //   refetchInterval: (data) =>
+  //     data?.status === "done" || data?.status === "failed" ? false : 1500,
+  // })
+
+  useEffect(() => {
+    if (!audioId) return;
+
+    let cancelled = false;
+    let timer: number | undefined;
+
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/status/${audioId}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`Status fetch failed: ${res.status}`);
+        const data = (await res.json()) as JobStatus;
+
+        if (!cancelled) setJob(data);
+
+        // Stop polling when terminal
+        if (!cancelled && data.status !== "done" && data.status !== "failed") {
+          timer = window.setTimeout(tick, 2000);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setJob({ status: "failed", error: (e as Error).message });
+        }
+      }
+    };
+
+    tick();
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [audioId]);
 
   async function refresh() {
     // just for example
@@ -22,13 +73,6 @@ export default function HomeClient({ initialData }: { initialData: TestData }) {
     setExample(data);
   }
 
-  async function testSsh() {
-    const res = await fetch("/api/test-ssh", {
-      method: "POST"
-    });
-    const data = await res.json();
-    console.log(data);
-  }
 
   const play = useCallback(async () => {
     const v = videoRef.current;
@@ -55,14 +99,19 @@ export default function HomeClient({ initialData }: { initialData: TestData }) {
   return (
     <Box sx={{ height: '100vh', display: "flex", flexDirection: "column" }}>
       <Box sx={{ height: '60%', display: "flex", flexDirection: "row", minHeight: 0 }} >
-        <Box sx={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+        <Box className="flex-1 min-w-0 min-h-0 p-2">
           <Typography variant="h4" gutterBottom>
-            Video Editor
+            AI Music Video Editor!
           </Typography>
+          <UploadFile
+            onUploaded={(id: string) => {
+              setAudioId(id);
+              setJob({ status: "queued" });
+            }}
+          />
           <InputContainer label="Reduce latency" float="top">
             <Switch />
           </InputContainer>
-          <UploadFile />
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, mt: 2 }}>
           <VideoPlayer
