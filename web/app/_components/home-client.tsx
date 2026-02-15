@@ -1,17 +1,19 @@
 "use client"
 
-import { Typography, Box, Switch, Button } from "@mui/material";
+import { Typography, Box, Switch } from "@mui/material";
 import VideoPlayer from "./video-player";
 import InputContainer from "@/components/input-container";
 import { useCallback, useState, useRef } from "react";
 import { TestData } from "@/types";
 import Timeline from "./timeline";
+import UploadFile from "./upload-file";
 
 
 export default function HomeClient({ initialData }: { initialData: TestData }) {
   const [example, setExample] = useState(initialData)
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [time, setTime] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   async function refresh() {
     // just for example
@@ -20,14 +22,21 @@ export default function HomeClient({ initialData }: { initialData: TestData }) {
     setExample(data);
   }
 
+  async function testSsh() {
+    const res = await fetch("/api/test-ssh", {
+      method: "POST"
+    });
+    const data = await res.json();
+    console.log(data);
+  }
+
   const play = useCallback(async () => {
     const v = videoRef.current;
     if (!v) return;
     try {
       await v.play();
     } catch (e) {
-      // Autoplay policies can block play() unless initiated by user interaction
-      console.error(e);
+      console.error(e); // Autoplay policies can block play() unless initiated by user interaction
     }
   }, []);
 
@@ -53,13 +62,21 @@ export default function HomeClient({ initialData }: { initialData: TestData }) {
           <InputContainer label="Reduce latency" float="top">
             <Switch />
           </InputContainer>
-          <Button onClick={play}>test plasy</Button>
+          <UploadFile />
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, mt: 2 }}>
-          <VideoPlayer time={time} setTime={setTime} src="https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_640x360.m4v" play={play} pause={pause} seekTo={seekTo} videoRef={videoRef} />
+          <VideoPlayer
+            time={time}
+            setTime={setTime}
+            onPlayingChange={setIsPlaying}
+            src="https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_640x360.m4v"
+            play={play}
+            pause={pause}
+            seekTo={seekTo}
+            videoRef={videoRef} />
         </Box>
       </Box>
-      <Timeline time={time} seekTo={seekTo} />
+      <Timeline time={time} seekTo={seekTo} play={play} pause={pause} isPlaying={isPlaying} />
     </Box>
   )
 

@@ -3,7 +3,18 @@
 import { Box, Button, Typography } from "@mui/material";
 import { useRef, useEffect } from "react";
 
-export default function VideoPlayer({ time, setTime, src, play, pause, seekTo, videoRef }: { time: number, setTime: (seconds: number) => void, src: string, play: () => void, pause: () => void, seekTo: (seconds: number) => void, videoRef: React.RefObject<HTMLVideoElement | null> }) {
+type VideoPlayerProps = {
+  time: number;
+  setTime: (seconds: number) => void;
+  src: string;
+  play: () => void;
+  pause: () => void;
+  seekTo: (seconds: number) => void;
+  onPlayingChange: (isPlaying: boolean) => void;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+}
+
+export default function VideoPlayer({ time, setTime, src, play, pause, seekTo, onPlayingChange, videoRef }: VideoPlayerProps) {
   const requestId = useRef<number | null>(null);
 
   useEffect(() => {
@@ -15,10 +26,12 @@ export default function VideoPlayer({ time, setTime, src, play, pause, seekTo, v
       requestId.current = requestAnimationFrame(tick);
     }
 
-    const start = () => {
+    const onStart = () => {
+      onPlayingChange(true);
       if (requestId.current == null) requestId.current = requestAnimationFrame(tick);
     }
-    const stop = () => {
+    const onStop = () => {
+      onPlayingChange(false);
       if (requestId.current !== null) {
         cancelAnimationFrame(requestId.current);
         requestId.current = null;
@@ -36,17 +49,17 @@ export default function VideoPlayer({ time, setTime, src, play, pause, seekTo, v
     }
 
     v.addEventListener("loadedmetadata", onLoadedMetadata);
-    v.addEventListener("play", start);
-    v.addEventListener("pause", stop);
-    v.addEventListener("ended", stop);
+    v.addEventListener("play", onStart);
+    v.addEventListener("pause", onStop);
+    v.addEventListener("ended", onStop);
     v.addEventListener("seeking", onSeek);
     v.addEventListener("seeked", onSeek);
 
     return () => {
       v.removeEventListener("loadedmetadata", onLoadedMetadata);
-      v.removeEventListener("play", start);
-      v.removeEventListener("pause", stop);
-      v.removeEventListener("ended", stop);
+      v.removeEventListener("play", onStart);
+      v.removeEventListener("pause", onStop);
+      v.removeEventListener("ended", onStop);
       v.removeEventListener("seeking", onSeek);
       v.removeEventListener("seeked", onSeek);
 
@@ -73,13 +86,6 @@ export default function VideoPlayer({ time, setTime, src, play, pause, seekTo, v
             display: 'block',
           }}
         />
-      </Box>
-
-      <Box sx={{ display: "flex", gap: 8, mt: 2 }}>
-        <Button onClick={play}>Play</Button>
-        <Button onClick={pause}>Pause</Button>
-        <Button onClick={() => seekTo(10)}>Test seek</Button>
-        <Typography>time: {time.toFixed(3)}s</Typography>
       </Box>
     </Box>
   );

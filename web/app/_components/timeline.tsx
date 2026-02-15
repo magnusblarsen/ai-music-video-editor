@@ -1,5 +1,5 @@
 "use client";
-import { Box, Paper, Typography } from "@mui/material";
+import { Box, Button, Paper, Typography } from "@mui/material";
 import React, { useRef, useState, useMemo, useEffect } from "react";
 
 type Track = { id: string; name: string };
@@ -20,7 +20,7 @@ const defaultTracks: Track[] = [
   { id: "a1", name: "Audio 1" },
 ]
 
-export default function Timeline({ time, seekTo, durationSec = 120, tracks = defaultTracks }: { time: number, seekTo: (seconds: number) => void, durationSec?: number; tracks?: Track[] }) {
+export default function Timeline({ time, seekTo, play, pause, isPlaying, durationSec = 120, tracks = defaultTracks }: { time: number, seekTo: (seconds: number) => void, play: () => void, pause: () => void, isPlaying?: boolean, durationSec?: number; tracks?: Track[] }) {
   const rulerHeight = 30
   const trackHeight = 50
 
@@ -168,10 +168,18 @@ export default function Timeline({ time, seekTo, durationSec = 120, tracks = def
 
   return (
     <Box className="flex flex-col flex-1 min-h-0 p-2">
-      <Box className="flex justify-end">
-        <Typography>{formatTime(time)}</Typography>
-        <Typography color="text.secondary" className="mx-1">/</Typography>
-        <Typography color="text.secondary">{formatTime(durationSec)}</Typography>
+      <Box className="flex justify-between">
+        {isPlaying ? (
+          <Button onClick={pause} variant="outlined" className="m-1">Pause</Button>
+        ) : (
+          <Button onClick={play} variant="outlined" className="m-1">Play</Button>
+        )}
+
+        <Box className="flex p-0 m-0 items-end">
+          <Typography>{formatTime(time)}</Typography>
+          <Typography color="text.secondary" className="mx-1">/</Typography>
+          <Typography color="text.secondary">{formatTime(durationSec)}</Typography>
+        </Box>
       </Box>
       <Paper variant="outlined" className="overflow-hidden">
         <Box
