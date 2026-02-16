@@ -3,26 +3,44 @@
 import { Box, Button, Typography } from "@mui/material";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-export default function UploadFile({ onUploaded }: { onUploaded: (id: string) => void }) {
+type JobStatus = {
+  status: "queued" | "running" | "done" | "failed" | string;
+  error?: string | null;
+}
+
+export default function UploadFile({ onUploaded, audioId }: { onUploaded: (id: string) => void, audioId: string | null }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const queryClient = useQueryClient();
+
+  async function fetchStatus(id: string): Promise<JobStatus> {
+    const res = await fetch(`/api/status/${id}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Status fetch failed: ${res.status}`);
+    return (await res.json()) as JobStatus;
+  }
+
+  const statusQuery = useQuery({
+    queryKey: ["status", audioId],
+    queryFn: () => fetchStatus(audioId!),
+    enabled: !!audioId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "done" || status === "failed" ? false : 5000;
+    },
+  })
+
+  const jobStatus = statusQuery.data ?? (audioId ? { status: "queued" } : null);
 
 
   const handleSelectClick = () => {
     inputRef.current?.click();
   }
 
-  async function upload() {
-    toast.info("Starting upload...");
-    if (!file) return;
 
-    setBusy(true);
-    setResult(null);
-
-    try {
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
       const form = new FormData();
       form.append("file", file);
 
@@ -31,20 +49,27 @@ export default function UploadFile({ onUploaded }: { onUploaded: (id: string) =>
         body: form
       });
 
-      const data = await res.json().catch(() => { })
+      const data = await res.json().catch(() => { });
 
       if (!res.ok) {
         throw new Error(data?.error || `Upload failed with status ${res.status}`);
       }
-
-      setResult(data);
-      onUploaded(data.audio_id)
-    } catch (e: any) {
-      toast.error(`Upload failed: ${e.message}`);
-    } finally {
-      setBusy(false);
+      return data;
+    },
+    onMutate: () => {
+      toast.info("Starting upload...");
+    },
+    onSuccess: (data) => {
+      onUploaded(data.audio_id);
+      queryClient.invalidateQueries({
+        queryKey: ["status", data.audio_id],
+      })
+    },
+    onError: (error) => {
+      toast.error(`Upload failed: ${error.message}`);
     }
-  }
+  })
+
 
   return (
     <Box className="flex flex-col items-start border-2 p-4 gap-4 rounded border-gray-300">
@@ -65,10 +90,14 @@ export default function UploadFile({ onUploaded }: { onUploaded: (id: string) =>
         </Typography>
       )}
 
-      <Button variant="outlined" onClick={upload} disabled={!file || busy}>
-        {busy ? "Uploading..." : "Upload"}
+      <Button variant="outlined" onClick={() => file && uploadMutation.mutate(file)} disabled={!file || uploadMutation.isPending}>
+        {uploadMutation.isPending ? "Uploading..." : "Upload"}
       </Button>
-      {result && <pre>{JSON.stringify(result, null, 2)}</pre>}
+      {jobStatus && (
+        <Typography variant="body1" color={jobStatus.status === "failed" ? "error" : "textPrimary"} gutterBottom>
+          Status: {jobStatus.status}
+        </Typography>
+      )}
     </Box>
 
   )

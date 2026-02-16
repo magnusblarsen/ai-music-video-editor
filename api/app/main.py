@@ -74,6 +74,7 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
 
     background_tasks.add_task(
         _copy_and_submit_with_status,
+        audio_id=audio_id,
         local_path=str(local_path),
         remote_dir=remote_dir,
         remote_audio_path=remote_audio_path,

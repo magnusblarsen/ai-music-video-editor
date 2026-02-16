@@ -3,8 +3,10 @@ export async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Prom
   const res = await fetch(input, init);
 
   if (!res.ok) {
-    throw new Error(`Fetch failed: ${res.status}`);
+    const text = await res.text().catch(() => "");
+    throw new Error(`Fetch failed: ${res.status} ${res.statusText}${text ? `: ${text}` : ""}`);
   }
-  return res.json();
+
+  return res.json() as Promise<T>;
 }
 

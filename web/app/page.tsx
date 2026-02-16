@@ -6,6 +6,7 @@ import { fetchInternal } from "@/utils/server/api";
 export default async function Home() {
   const data = await fetchInternal<TestData>("/test");
 
+
   return (
     <HomeClient initialData={data} />
   )

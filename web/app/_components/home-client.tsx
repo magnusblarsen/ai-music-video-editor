@@ -3,17 +3,11 @@
 import { Typography, Box, Switch } from "@mui/material";
 import VideoPlayer from "./video-player";
 import InputContainer from "@/components/input-container";
-import { useCallback, useState, useRef, useEffect } from "react";
+import { useCallback, useState, useRef } from "react";
 import { TestData } from "@/types";
 import Timeline from "./timeline";
 import UploadFile from "./upload-file";
 
-
-
-type JobStatus = {
-  status: "queued" | "running" | "done" | "failed" | string;
-  error?: string | null;
-}
 
 export default function HomeClient({ initialData }: { initialData: TestData }) {
   const [example, setExample] = useState(initialData)
@@ -22,57 +16,13 @@ export default function HomeClient({ initialData }: { initialData: TestData }) {
   const [isPlaying, setIsPlaying] = useState(false);
 
   const [audioId, setAudioId] = useState<string | null>(null);
-  const [job, setJob] = useState<JobStatus | null>(null);
-
-  // TODO: in the future: tanstack query
-  // useQuery({
-  //   queryKey: ["status", audioId],
-  //   queryFn: () => fetchStatus(audioId),
-  //   enabled: !!audioId,
-  //   refetchInterval: (data) =>
-  //     data?.status === "done" || data?.status === "failed" ? false : 1500,
-  // })
-
-  useEffect(() => {
-    if (!audioId) return;
-
-    let cancelled = false;
-    let timer: number | undefined;
-
-    const tick = async () => {
-      try {
-        const res = await fetch(`/api/status/${audioId}`, { cache: "no-store" });
-        if (!res.ok) throw new Error(`Status fetch failed: ${res.status}`);
-        const data = (await res.json()) as JobStatus;
-
-        if (!cancelled) setJob(data);
-
-        // Stop polling when terminal
-        if (!cancelled && data.status !== "done" && data.status !== "failed") {
-          timer = window.setTimeout(tick, 2000);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setJob({ status: "failed", error: (e as Error).message });
-        }
-      }
-    };
-
-    tick();
-
-    return () => {
-      cancelled = true;
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [audioId]);
 
   async function refresh() {
-    // just for example
+    // just an example
     const res = await fetch("/api/test");
     const data = (await res.json()) as TestData;
     setExample(data);
   }
-
 
   const play = useCallback(async () => {
     const v = videoRef.current;
@@ -106,10 +56,10 @@ export default function HomeClient({ initialData }: { initialData: TestData }) {
           <UploadFile
             onUploaded={(id: string) => {
               setAudioId(id);
-              setJob({ status: "queued" });
             }}
+            audioId={audioId}
           />
-          <InputContainer label="Reduce latency" float="top">
+          <InputContainer label="Make it faster!" float="top">
             <Switch />
           </InputContainer>
         </Box>
