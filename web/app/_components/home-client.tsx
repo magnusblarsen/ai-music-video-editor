@@ -7,6 +7,7 @@ import { useCallback, useState, useRef } from "react";
 import { TestData } from "@/types";
 import Timeline from "./timeline";
 import UploadFile from "./upload-file";
+import GenerateVideo from "./generate-video";
 
 
 export default function HomeClient({ initialData, initialAudioId }: { initialData: TestData, initialAudioId?: string }) {
@@ -59,6 +60,7 @@ export default function HomeClient({ initialData, initialAudioId }: { initialDat
             }}
             audioId={audioId}
           />
+          <GenerateVideo />
           <InputContainer label="Make it faster!" float="top">
             <Switch />
           </InputContainer>

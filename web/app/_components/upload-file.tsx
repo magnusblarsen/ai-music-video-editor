@@ -21,7 +21,6 @@ export default function UploadFile({ onUploaded, audioId }: { onUploaded: (id: s
     return (await res.json()) as JobStatus;
   }
 
-  // TODO: will fail if server stops
   const statusQuery = useQuery({
     queryKey: ["status", audioId],
     queryFn: () => fetchStatus(audioId!),
@@ -73,7 +72,7 @@ export default function UploadFile({ onUploaded, audioId }: { onUploaded: (id: s
 
 
   return (
-    <Box className="flex flex-col items-start border-2 p-4 gap-4 rounded border-gray-300">
+    <Box className="flex flex-col items-start border-2 p-4 gap-2 rounded border-gray-300">
       <input
         ref={inputRef}
         type="file"
@@ -94,6 +93,7 @@ export default function UploadFile({ onUploaded, audioId }: { onUploaded: (id: s
       <Button variant="outlined" onClick={() => file && uploadMutation.mutate(file)} disabled={!file || uploadMutation.isPending}>
         {uploadMutation.isPending ? "Uploading..." : "Upload"}
       </Button>
+
       {jobStatus && (
         <Typography variant="body1" color={jobStatus.status === "failed" ? "error" : "textPrimary"} gutterBottom>
           Status: {jobStatus.status}
