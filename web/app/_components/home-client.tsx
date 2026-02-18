@@ -9,13 +9,13 @@ import Timeline from "./timeline";
 import UploadFile from "./upload-file";
 
 
-export default function HomeClient({ initialData }: { initialData: TestData }) {
+export default function HomeClient({ initialData, initialAudioId }: { initialData: TestData, initialAudioId?: string }) {
   const [example, setExample] = useState(initialData)
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [time, setTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const [audioId, setAudioId] = useState<string | null>(null);
+  const [audioId, setAudioId] = useState<string | null>(initialAudioId || null);
 
   async function refresh() {
     // just an example
@@ -75,7 +75,7 @@ export default function HomeClient({ initialData }: { initialData: TestData }) {
             videoRef={videoRef} />
         </Box>
       </Box>
-      <Timeline time={time} seekTo={seekTo} play={play} pause={pause} isPlaying={isPlaying} />
+      <Timeline time={time} seekToAction={seekTo} playAction={play} pauseAction={pause} isPlaying={isPlaying} />
     </Box>
   )
 

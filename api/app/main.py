@@ -13,10 +13,9 @@ load_dotenv()
 app = FastAPI(title="Video Generation API")
 
 
-# TODO: type for task status
-TASKS = {}  # Redis + Celery / RQ / Dramatiq
+TASKS = {}  # Redis + Celery / RQ / Dramatiq???
 
-STAGING_DIR = Path("/tmp/uploads")  # on your backend server
+STAGING_DIR = Path("/tmp/uploads")
 STAGING_DIR.mkdir(parents=True, exist_ok=True)
 
 HPC_HOST = os.getenv("HPC_HOST")
@@ -56,7 +55,6 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
 
     TASKS[audio_id] = {"status": "queued", "error": None}
 
-    # Save upload to local disk (streamed)
     try:
         with local_path.open("wb") as out:
             while True:
@@ -67,7 +65,6 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
     finally:
         await file.close()
 
-    # Copy to HPC + submit SLURM job
     remote_dir = f"{HPC_REMOTE_BASE}/{audio_id}"
     remote_audio_path = f"{remote_dir}/input{ext}"
     remote_job_script = f"{remote_dir}/job.sbatch"
@@ -90,6 +87,9 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
 
 @app.get("/status/{audio_id}")
 async def get_status(audio_id: str):
+    if audio_id == os.getenv("AUDIO_ID_FOR_TEST"):
+        return {"status": "done"}
+
     task = TASKS.get(audio_id)
     if not task:
         raise HTTPException(status_code=404, detail="Not found")

@@ -21,6 +21,7 @@ export default function UploadFile({ onUploaded, audioId }: { onUploaded: (id: s
     return (await res.json()) as JobStatus;
   }
 
+  // TODO: will fail if server stops
   const statusQuery = useQuery({
     queryKey: ["status", audioId],
     queryFn: () => fetchStatus(audioId!),

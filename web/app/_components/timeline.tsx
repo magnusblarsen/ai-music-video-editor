@@ -20,7 +20,17 @@ const defaultTracks: Track[] = [
   { id: "a1", name: "Audio 1" },
 ]
 
-export default function Timeline({ time, seekTo, play, pause, isPlaying, durationSec = 120, tracks = defaultTracks }: { time: number, seekTo: (seconds: number) => void, play: () => void, pause: () => void, isPlaying?: boolean, durationSec?: number; tracks?: Track[] }) {
+type TimelineProps = {
+  time: number;
+  seekToAction: (seconds: number) => void;
+  playAction: () => void;
+  pauseAction: () => void;
+  isPlaying?: boolean;
+  durationSec?: number;
+  tracks?: Track[];
+}
+
+export default function Timeline({ time, seekToAction, playAction, pauseAction, isPlaying, durationSec = 120, tracks = defaultTracks }: TimelineProps) {
   const rulerHeight = 30
   const trackHeight = 50
 
@@ -93,7 +103,7 @@ export default function Timeline({ time, seekTo, play, pause, isPlaying, duratio
     const xInView = e.clientX - rect.left;
     const x = scroller.scrollLeft + xInView;
     const time = clamp(xToTime(x), 0, durationSec);
-    seekTo(time);
+    seekToAction(time);
   }
 
   useEffect(() => {
@@ -124,7 +134,7 @@ export default function Timeline({ time, seekTo, play, pause, isPlaying, duratio
     if (!scroller) return;
 
     const dt = xToTime(e.clientX - dragRef.current.startX);
-    seekTo(clamp(dragRef.current.startT + dt, 0, durationSec));
+    seekToAction(clamp(dragRef.current.startT + dt, 0, durationSec));
   };
 
   const onPlayheadPointerUp = (e: React.PointerEvent) => {
@@ -170,9 +180,9 @@ export default function Timeline({ time, seekTo, play, pause, isPlaying, duratio
     <Box className="flex flex-col flex-1 min-h-0 p-2">
       <Box className="flex justify-between">
         {isPlaying ? (
-          <Button onClick={pause} variant="outlined" className="m-1">Pause</Button>
+          <Button onClick={pauseAction} variant="outlined" className="m-1">Pause</Button>
         ) : (
-          <Button onClick={play} variant="outlined" className="m-1">Play</Button>
+          <Button onClick={playAction} variant="outlined" className="m-1">Play</Button>
         )}
 
         <Box className="flex p-0 m-0 items-end">
@@ -200,7 +210,6 @@ export default function Timeline({ time, seekTo, play, pause, isPlaying, duratio
               pxPerSecond={pxPerSecond}
               majorStepSec={majorStepSec}
               minorStepSec={minorStepSec}
-              rulerHeight={rulerHeight}
             />
           </Box>
 
@@ -268,13 +277,11 @@ function Ruler({
   pxPerSecond,
   majorStepSec,
   minorStepSec,
-  rulerHeight,
 }: {
   durationSec: number;
   pxPerSecond: number;
   majorStepSec: number;
   minorStepSec: number;
-  rulerHeight: number;
 }) {
   const ticks: Array<{ x: number; isMajor: boolean; label?: string }> = [];
 
@@ -292,8 +299,11 @@ function Ruler({
 
   return (
     <Box sx={{ position: "absolute", inset: 0 }}>
-      {ticks.map((tick, idx) => (
-        <Box
+      {ticks.map((tick, idx) => {
+        if (idx === ticks.length - 1) {
+          return null; // avoid overflow
+        }
+        return (<Box
           key={idx}
           sx={{
             position: "absolute",
@@ -305,17 +315,6 @@ function Ruler({
             borderColor: tick.isMajor ? "text.secondary" : "divider",
           }}
         >
-          <Box
-            sx={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: 0,
-              height: tick.isMajor ? rulerHeight : Math.floor(rulerHeight * 0.6),
-              borderLeft: "1px solid",
-              borderColor: tick.isMajor ? "text.secondary" : "divider",
-            }}
-          />
           {tick.label && (
             <Typography
               variant="caption"
@@ -330,8 +329,8 @@ function Ruler({
               {tick.label}
             </Typography>
           )}
-        </Box>
-      ))}
+        </Box>)
+      })}
     </Box>
   );
 }
