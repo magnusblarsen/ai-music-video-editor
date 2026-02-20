@@ -1,19 +1,22 @@
 from typing import Annotated
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from pathlib import Path
 import uuid
 import os
-import asyncio
 import asyncssh
 from dotenv import load_dotenv
+from app.models import TaskRecord, TaskState
+from app.tasks import transition
 
 
 load_dotenv()
 
 app = FastAPI(title="Video Generation API")
 
+api = APIRouter(prefix="/api")
 
-TASKS = {}  # Redis + Celery / RQ / Dramatiq???
+
+TASKS: dict[str, TaskRecord] = {}
 
 STAGING_DIR = Path("/tmp/uploads")
 STAGING_DIR.mkdir(parents=True, exist_ok=True)
@@ -24,12 +27,12 @@ HPC_REMOTE_BASE = os.getenv("HPC_REMOTE_BASE")
 HPC_SSH_KEY = os.getenv("HPC_SSH_KEY")
 
 
-@app.get("/test")
+@api.get("/test")
 def health():
     return {"status": "ok"}
 
 
-@app.post("/test-ssh")
+@api.post("/test-ssh")
 async def test_ssh():
     try:
         async with asyncssh.connect(
@@ -44,7 +47,7 @@ async def test_ssh():
         raise HTTPException(status_code=500, detail=f"SSH connection failed: {e}")
 
 
-@app.post("/upload-audio")
+@api.post("/upload-audio")
 async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[UploadFile, File()]):
     if not file.content_type or not file.content_type.startswith("audio/"):
         raise HTTPException(status_code=400, detail=f"Expected audio/*, got {file.content_type}")
@@ -53,7 +56,7 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
     audio_id = str(uuid.uuid4())
     local_path = STAGING_DIR / f"{audio_id}{ext}"
 
-    TASKS[audio_id] = {"status": "queued", "error": None}
+    TASKS[audio_id] = TaskRecord(task_id=audio_id)
 
     try:
         with local_path.open("wb") as out:
@@ -70,7 +73,7 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
     remote_job_script = f"{remote_dir}/job.sbatch"
 
     background_tasks.add_task(
-        _copy_and_submit_with_status,
+        _stage_audio,
         audio_id=audio_id,
         local_path=str(local_path),
         remote_dir=remote_dir,
@@ -78,17 +81,13 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
         remote_job_script=remote_job_script,
     )
 
-    return {
-        "audio_id": audio_id,
-        "remote_audio_path": remote_audio_path,
-        "status": "queued",
-    }
+    return TASKS[audio_id]
 
 
-@app.get("/status/{audio_id}")
+@api.get("/status/{audio_id}")
 async def get_status(audio_id: str):
     if audio_id == os.getenv("AUDIO_ID_FOR_TEST"):
-        return {"status": "done"}
+        return TaskRecord(task_id=audio_id, state=TaskState.staging, progress=100)
 
     task = TASKS.get(audio_id)
     if not task:
@@ -96,31 +95,33 @@ async def get_status(audio_id: str):
     return task
 
 
-async def _copy_and_submit_with_status(
+async def _stage_audio(
     audio_id: str,
     local_path: str,
     remote_dir: str,
     remote_audio_path: str,
     remote_job_script: str,
 ):
-    try:
-        TASKS[audio_id]["status"] = "running"
+    task = TASKS[audio_id]
 
-        await _copy_and_submit(
+    try:
+        transition(task, TaskState.staging, message="Uploading audio to HPC", progress=20)
+
+        await _upload(
             local_path,
             remote_dir,
             remote_audio_path,
             remote_job_script,
         )
 
-        TASKS[audio_id]["status"] = "done"
+        transition(task, TaskState.ready, message="Uploaded Audio", progress=100)
 
     except Exception as e:
-        TASKS[audio_id]["status"] = "failed"
-        TASKS[audio_id]["error"] = str(e)
+        transition(task, TaskState.failed, message="Upload failed")
+        task.error = str(e)
 
 
-async def _copy_and_submit(local_path: str, remote_dir: str, remote_audio_path: str, remote_job_script: str):
+async def _upload(local_path: str, remote_dir: str, remote_audio_path: str, remote_job_script: str):
     job_contents = f"""#!/bin/bash
 #SBATCH --job-name=audio_{Path(remote_dir).name}
 #SBATCH --output={remote_dir}/clap-%j.out
@@ -153,7 +154,7 @@ python main.py
         HPC_HOST,
         username=HPC_USER,
         client_keys=[HPC_SSH_KEY],
-        known_hosts=None,  # better: pin known_hosts in production
+        known_hosts=None,
     ) as conn:
         await conn.run(f"mkdir -p {remote_dir}", check=True)
 
@@ -166,6 +167,5 @@ python main.py
             await sftp.put(str(tmp_local_job), remote_job_script)
             tmp_local_job.unlink(missing_ok=True)
 
-        # result = await conn.run(f"sbatch {remote_job_script}", check=True)
-        result = await conn.run(f"ls {remote_dir}", check=True)
-        print(f"SLURM submission result: {result.stdout}")
+
+app.include_router(api)

@@ -4,7 +4,7 @@ import { fetchInternal } from "@/utils/server/api";
 
 
 export default async function Home() {
-  const data = await fetchInternal<TestData>("/test");
+  const data = await fetchInternal<TestData>("/api/test");
   const audioId = process.env.AUDIO_ID
 
   return (

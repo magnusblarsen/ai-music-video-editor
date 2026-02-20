@@ -4,11 +4,7 @@ import { Box, Button, Typography } from "@mui/material";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-
-type JobStatus = {
-  status: "queued" | "running" | "done" | "failed" | string;
-  error?: string | null;
-}
+import { JobStatus } from "@/types/editor";
 
 export default function UploadFile({ onUploaded, audioId }: { onUploaded: (id: string) => void, audioId: string | null }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -26,12 +22,12 @@ export default function UploadFile({ onUploaded, audioId }: { onUploaded: (id: s
     queryFn: () => fetchStatus(audioId!),
     enabled: !!audioId,
     refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === "done" || status === "failed" ? false : 5000;
+      const status = query.state.data?.state;
+      return status === "staging" || status === "done" || status === "failed" ? false : 5000;
     },
   })
 
-  const jobStatus = statusQuery.data ?? (audioId ? { status: "queued" } : null);
+  const jobStatus = statusQuery.data ?? (audioId ? { state: "queued" } : null);
 
 
   const handleSelectClick = () => {
@@ -95,8 +91,8 @@ export default function UploadFile({ onUploaded, audioId }: { onUploaded: (id: s
       </Button>
 
       {jobStatus && (
-        <Typography variant="body1" color={jobStatus.status === "failed" ? "error" : "textPrimary"} gutterBottom>
-          Status: {jobStatus.status}
+        <Typography variant="body1" color={jobStatus.state === "failed" ? "error" : "textPrimary"} gutterBottom>
+          Status: {jobStatus.state}
         </Typography>
       )}
     </Box>
