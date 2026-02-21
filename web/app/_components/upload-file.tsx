@@ -61,6 +61,7 @@ export default function UploadFile({ onUploadedAction, audioId }: UploadFileProp
       toast.info("Starting upload...");
     },
     onSuccess: (data) => {
+      console.log("upload success", data);
       onUploadedAction(data.audio_id);
       queryClient.invalidateQueries({
         queryKey: ["status", data.audio_id],
