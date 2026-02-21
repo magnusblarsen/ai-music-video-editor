@@ -3,10 +3,15 @@
 import { Box, Button, Typography } from "@mui/material";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { JobStatus } from "@/types/editor";
 
-export default function UploadFile({ onUploaded, audioId }: { onUploaded: (id: string) => void, audioId: string | null }) {
+type UploadFileProps = {
+  onUploadedAction: (id: string) => void;
+  audioId: string | null;
+}
+
+export default function UploadFile({ onUploadedAction, audioId }: UploadFileProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const queryClient = useQueryClient();
@@ -56,7 +61,7 @@ export default function UploadFile({ onUploaded, audioId }: { onUploaded: (id: s
       toast.info("Starting upload...");
     },
     onSuccess: (data) => {
-      onUploaded(data.audio_id);
+      onUploadedAction(data.audio_id);
       queryClient.invalidateQueries({
         queryKey: ["status", data.audio_id],
       })

@@ -1,13 +1,15 @@
 from typing import Annotated
-from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends
 from pathlib import Path
 import uuid
 import os
 import asyncssh
 from dotenv import load_dotenv
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app.models import TaskRecord, TaskState
 from app.tasks import transition
-
+from app.db import get_db
 
 load_dotenv()
 
@@ -27,9 +29,10 @@ HPC_REMOTE_BASE = os.getenv("HPC_REMOTE_BASE")
 HPC_SSH_KEY = os.getenv("HPC_SSH_KEY")
 
 
-@api.get("/test")
-def health():
-    return {"status": "ok"}
+@api.get("/health/db")
+def db_health(db: Session = Depends(get_db)):
+    db.execute(text("SELECT 1"))
+    return {"ok": True}
 
 
 @api.post("/test-ssh")
@@ -82,6 +85,17 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
     )
 
     return TASKS[audio_id]
+
+
+async def _download_from_hpc(remote_path: str, local_path: str):
+    async with asyncssh.connect(
+        HPC_HOST,
+        username=HPC_USER,
+        client_keys=[HPC_SSH_KEY],
+        known_hosts=None,
+    ) as conn:
+        async with conn.start_sftp_client() as sftp:
+            await sftp.get(remote_path, local_path)
 
 
 @api.get("/status/{audio_id}")

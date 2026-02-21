@@ -1,9 +1,5 @@
-// type JobStatus = {
-//   status: "queued" | "running" | "done" | "failed" | string;
-//   error?: string | null;
-// }
 
-export interface JobStatus {
-  state: "queued" | "staging" | "readt" | "running" | "done" | "failed" | string;
+export type JobStatus = {
+  state: "queued" | "staging" | "ready" | "running" | "done" | "failed";
   error?: string | null;
 }

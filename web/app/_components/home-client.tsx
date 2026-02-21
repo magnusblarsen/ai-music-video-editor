@@ -9,8 +9,12 @@ import Timeline from "./timeline";
 import UploadFile from "./upload-file";
 import GenerateVideo from "./generate-video";
 
+type HomeClientProps = {
+  initialData: TestData;
+  initialAudioId?: string;
+}
 
-export default function HomeClient({ initialData, initialAudioId }: { initialData: TestData, initialAudioId?: string }) {
+export default function HomeClient({ initialData, initialAudioId }: HomeClientProps) {
   const [example, setExample] = useState(initialData)
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [time, setTime] = useState(0);
@@ -55,7 +59,7 @@ export default function HomeClient({ initialData, initialAudioId }: { initialDat
             AI Music Video Editor!
           </Typography>
           <UploadFile
-            onUploaded={(id: string) => {
+            onUploadedAction={(id: string) => {
               setAudioId(id);
             }}
             audioId={audioId}
