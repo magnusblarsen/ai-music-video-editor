@@ -1,18 +1,23 @@
+from threading import Lock
 from app.models import TaskRecord
 
-
 # TODO: Should be real db
+
+
 class InMemoryTaskStore:
     def __init__(self) -> None:
+        self._lock = Lock()
         self._tasks: dict[str, TaskRecord] = {}
 
     def create(self, task_id: str) -> TaskRecord:
-        task = TaskRecord(task_id=task_id)
-        self._tasks[task_id] = task
-        return task
+        with self._lock:
+            task = TaskRecord(task_id=task_id)
+            self._tasks[task_id] = task
+            return task
 
     def get(self, task_id: str) -> TaskRecord | None:
-        return self._tasks.get(task_id)
+        with self._lock:
+            return self._tasks.get(task_id)
 
     def require(self, task_id: str) -> TaskRecord:
         task = self.get(task_id)

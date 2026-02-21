@@ -3,7 +3,7 @@
 import { Typography, Box, Switch } from "@mui/material";
 import VideoPlayer from "./video-player";
 import InputContainer from "@/components/input-container";
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import { TestData } from "@/types";
 import Timeline from "./timeline";
 import UploadFile from "./upload-file";

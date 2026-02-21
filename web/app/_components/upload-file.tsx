@@ -27,8 +27,13 @@ export default function UploadFile({ onUploadedAction, audioId }: UploadFileProp
     queryFn: () => fetchStatus(audioId!),
     enabled: !!audioId,
     refetchInterval: (query) => {
+      if (query.state.status === "error") return false;
+
       const status = query.state.data?.state;
-      return status === "staging" || status === "done" || status === "failed" ? false : 5000;
+
+      if (!status) return 5000;
+
+      return ["staging", "done", "failed"].includes(status) ? false : 5000;
     },
   })
 
@@ -61,10 +66,9 @@ export default function UploadFile({ onUploadedAction, audioId }: UploadFileProp
       toast.info("Starting upload...");
     },
     onSuccess: (data) => {
-      console.log("upload success", data);
-      onUploadedAction(data.audio_id);
+      onUploadedAction(data.task_id);
       queryClient.invalidateQueries({
-        queryKey: ["status", data.audio_id],
+        queryKey: ["status", data.task_id],
       })
     },
     onError: (error) => {
