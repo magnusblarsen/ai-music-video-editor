@@ -28,9 +28,10 @@ type TimelineProps = {
   isPlaying?: boolean;
   durationSec?: number;
   tracks?: Track[];
+  audioFile: File | null;
 }
 
-export default function Timeline({ time, seekToAction, playAction, pauseAction, isPlaying, durationSec = 120, tracks = defaultTracks }: TimelineProps) {
+export default function Timeline({ time, seekToAction, playAction, pauseAction, isPlaying, durationSec = 120, tracks = defaultTracks, audioFile }: TimelineProps) {
   const rulerHeight = 30
   const trackHeight = 50
 
@@ -249,7 +250,6 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
                 borderLeft: "2px solid",
                 borderColor: "primary.main",
                 cursor: "ew-resize",
-                // add a grab handle at top
                 "&::before": {
                   content: '""',
                   position: "absolute",

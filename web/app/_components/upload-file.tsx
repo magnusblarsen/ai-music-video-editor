@@ -9,11 +9,12 @@ import { JobStatus } from "@/types/editor";
 type UploadFileProps = {
   onUploadedAction: (id: string) => void;
   audioId: string | null;
+  file: File | null;
+  setFileAction: (file: File | null) => void;
 }
 
-export default function UploadFile({ onUploadedAction, audioId }: UploadFileProps) {
+export default function UploadFile({ onUploadedAction, audioId, file, setFileAction }: UploadFileProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [file, setFile] = useState<File | null>(null);
   const queryClient = useQueryClient();
 
   async function fetchStatus(id: string): Promise<JobStatus> {
@@ -84,7 +85,7 @@ export default function UploadFile({ onUploadedAction, audioId }: UploadFileProp
         type="file"
         accept="audio/*"
         hidden
-        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        onChange={(e) => setFileAction(e.target.files?.[0] ?? null)}
       />
       <Button variant="contained" onClick={handleSelectClick}>
         {file ? "Change audio file" : "Select audio file"}
