@@ -1,25 +1,14 @@
 "use client";
 import { Box, Button, Paper, Typography } from "@mui/material";
 import React, { useRef, useState, useMemo, useEffect } from "react";
+import Ruler from "./ruler";
+import { formatTime } from "@/utils/formatTime";
+import { Track } from "@/types/editor";
 
-type Track = { id: string; name: string };
 
 function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v));
 }
-
-function formatTime(sec: number) {
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-const defaultTracks: Track[] = [
-  { id: "v1", name: "Video 1" },
-  { id: "v2", name: "Video 2" },
-  { id: "a1", name: "Audio 1" },
-]
-
 type TimelineProps = {
   time: number;
   seekToAction: (seconds: number) => void;
@@ -27,11 +16,10 @@ type TimelineProps = {
   pauseAction: () => void;
   isPlaying?: boolean;
   durationSec?: number;
-  tracks?: Track[];
-  audioFile: File | null;
+  tracks: Track[];
 }
 
-export default function Timeline({ time, seekToAction, playAction, pauseAction, isPlaying, durationSec = 120, tracks = defaultTracks, audioFile }: TimelineProps) {
+export default function Timeline({ time, seekToAction, playAction, pauseAction, isPlaying, durationSec = 120, tracks }: TimelineProps) {
   const rulerHeight = 30
   const trackHeight = 50
 
@@ -77,7 +65,6 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
 
     return () => resizeObserver.disconnect();
   }, [durationSec])
-
 
   const totalWidthPx = Math.max(1, durationSec * pxPerSecond);
 
@@ -272,65 +259,3 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
 
 
 
-function Ruler({
-  durationSec,
-  pxPerSecond,
-  majorStepSec,
-  minorStepSec,
-}: {
-  durationSec: number;
-  pxPerSecond: number;
-  majorStepSec: number;
-  minorStepSec: number;
-}) {
-  const ticks: Array<{ x: number; isMajor: boolean; label?: string }> = [];
-
-  const minorCount = Math.floor(durationSec / minorStepSec);
-  for (let i = 0; i <= minorCount; i++) {
-    const t = i * minorStepSec;
-    const x = t * pxPerSecond;
-    const isMajor = Math.abs((t / majorStepSec) - Math.round(t / majorStepSec)) < 1e-9;
-    ticks.push({
-      x,
-      isMajor,
-      label: isMajor ? formatTime(t) : undefined,
-    });
-  }
-
-  return (
-    <Box sx={{ position: "absolute", inset: 0 }}>
-      {ticks.map((tick, idx) => {
-        if (idx === ticks.length - 1) {
-          return null; // avoid overflow
-        }
-        return (<Box
-          key={idx}
-          sx={{
-            position: "absolute",
-            left: tick.x,
-            top: 0,
-            height: "100%",
-            width: 0,
-            borderLeft: "1px solid",
-            borderColor: tick.isMajor ? "text.secondary" : "divider",
-          }}
-        >
-          {tick.label && (
-            <Typography
-              variant="caption"
-              sx={{
-                position: "absolute",
-                top: 2,
-                left: 4,
-                color: "text.secondary",
-                userSelect: "none",
-              }}
-            >
-              {tick.label}
-            </Typography>
-          )}
-        </Box>)
-      })}
-    </Box>
-  );
-}

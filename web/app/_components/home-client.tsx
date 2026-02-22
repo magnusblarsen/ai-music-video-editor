@@ -5,15 +5,20 @@ import VideoPlayer from "./video-player";
 import InputContainer from "@/components/input-container";
 import { useCallback, useState, useRef, useEffect } from "react";
 import { TestData } from "@/types";
-import Timeline from "./timeline";
+import Timeline from "./timeline/timeline";
 import UploadFile from "./upload-file";
 import GenerateVideo from "./generate-video";
-import { useAppContext } from "@/context/AppContext";
+import { Track } from "@/types/editor";
 
 type HomeClientProps = {
   initialData: TestData;
   initialAudioId?: string;
 }
+
+const defaultTracks: Track[] = [
+  { id: "v1", name: "Video 1", type: "video" },
+  { id: "a1", name: "Audio 1", type: "audio" },
+]
 
 export default function HomeClient({ initialData, initialAudioId }: HomeClientProps) {
   const [example, setExample] = useState(initialData)
@@ -23,6 +28,7 @@ export default function HomeClient({ initialData, initialAudioId }: HomeClientPr
   const [audioFile, setAudioFile] = useState<File | null>(null);
 
   const [audioId, setAudioId] = useState<string | null>(initialAudioId || null);
+  const [tracks, setTracks] = useState<Track[]>(defaultTracks);
 
   async function refresh() {
     // just an example
@@ -45,13 +51,11 @@ export default function HomeClient({ initialData, initialAudioId }: HomeClientPr
     videoRef.current?.pause();
   }, []);
 
-
   const seekTo = useCallback((seconds: number) => {
     const v = videoRef.current;
     if (!v) return;
     v.currentTime = Math.max(0, seconds);
   }, []);
-
 
   return (
     <Box sx={{ height: '100vh', display: "flex", flexDirection: "column" }}>
@@ -85,7 +89,7 @@ export default function HomeClient({ initialData, initialAudioId }: HomeClientPr
             videoRef={videoRef} />
         </Box>
       </Box>
-      <Timeline time={time} seekToAction={seekTo} playAction={play} pauseAction={pause} isPlaying={isPlaying} audioFile={audioFile} />
+      <Timeline tracks={tracks} time={time} seekToAction={seekTo} playAction={play} pauseAction={pause} isPlaying={isPlaying} />
     </Box>
   )
 
