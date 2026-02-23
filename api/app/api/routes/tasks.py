@@ -48,13 +48,13 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
     return task
 
 
-@router.get("/status/{audio_id}")
-async def get_status(audio_id: str):
+@router.get("/status/{task_id}")
+async def get_status(task_id: str):
     load_dotenv()
-    if audio_id == os.getenv("AUDIO_ID_FOR_TEST"):
-        return TaskRecord(task_id=audio_id, state=TaskState.staging, progress=100)
+    if task_id == os.getenv("AUDIO_ID_FOR_TEST"):
+        return TaskRecord(task_id=task_id, state=TaskState.staging, progress=100)
 
-    task = task_store.get(audio_id)
+    task = task_store.get(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Not found")
     return task
