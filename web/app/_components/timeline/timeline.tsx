@@ -24,15 +24,12 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
   const trackHeight = 50
 
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const didInitZoomRef = useRef(false);
-  const viewportWidthRef = useRef(0);
 
   const [pxPerSecond, setPxPerSecond] = useState(80)
   const [viewportWidth, setViewportWidth] = useState(0);
 
 
   const minPxPerSecond = useMemo(() => {
-    if (!viewportWidth) return 1; // fallback for first render
     return Math.max(0.5, viewportWidth / durationSec)
   }, [viewportWidth, durationSec]);
 
@@ -45,24 +42,18 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
     const el = scrollRef.current;
     if (!el) return;
 
+    const clientWidth = el.clientWidth;
+    setViewportWidth(clientWidth);
+
+    const initialZoom = Math.max(0.5, clientWidth / durationSec);
+    setPxPerSecond(initialZoom);
+    el.scrollTo({ left: 0 })
+
     const resizeObserver = new ResizeObserver(() => {
-      const clientWidth = el.clientWidth;
-
-      // On first render fit timeline to viewport width
-      if (!didInitZoomRef.current) {
-        didInitZoomRef.current = true;
-        viewportWidthRef.current = clientWidth;
-        const initialZoom = Math.max(0.5, clientWidth / durationSec);
-        setPxPerSecond(initialZoom);
-        el.scrollTo({ left: 0 })
-      }
-
       setViewportWidth(el.clientWidth);
     })
 
     resizeObserver.observe(el);
-    setViewportWidth(el.clientWidth);
-
     return () => resizeObserver.disconnect();
   }, [durationSec])
 

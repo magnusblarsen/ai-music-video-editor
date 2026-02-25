@@ -1,14 +1,15 @@
 "use client"
 
-import { Typography, Box, Switch, Button } from "@mui/material";
+import { Typography, Box, Switch } from "@mui/material";
 import VideoPlayer from "./video-player";
 import InputContainer from "@/components/input-container";
-import { useCallback, useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { TestData } from "@/types";
 import Timeline from "./timeline/timeline";
 import UploadFile from "./upload-file";
 import GenerateVideo from "./generate-video";
 import { Track } from "@/types/editor";
+import { useMediaController } from "./hooks/useMediaController";
 
 type HomeClientProps = {
   initialData: TestData;
@@ -22,11 +23,8 @@ const defaultTracks: Track[] = [
 
 export default function HomeClient({ initialData, initialAudioId }: HomeClientProps) {
   const [example, setExample] = useState(initialData)
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [time, setTime] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioFile, setAudioFile] = useState<File | null>(null);
 
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioId, setAudioId] = useState<string | null>(initialAudioId || null);
   const [tracks, setTracks] = useState<Track[]>(defaultTracks);
 
@@ -37,25 +35,17 @@ export default function HomeClient({ initialData, initialAudioId }: HomeClientPr
     setExample(data);
   }
 
-  const play = useCallback(async () => {
-    const v = videoRef.current;
-    if (!v) return;
-    try {
-      await v.play();
-    } catch (e) {
-      console.error(e); // Autoplay policies can block play() unless initiated by user interaction
+  const media = useMediaController()
+
+  // NOTE: hardcoded audio file
+  const audioUrl = audioId ? `/api/media/never.mp3` : null;
+
+  useEffect(() => {
+    if (media.audioSrc !== audioUrl) {
+      media.setAudioSrc(audioUrl);
     }
-  }, []);
+  }, [audioUrl])
 
-  const pause = useCallback(() => {
-    videoRef.current?.pause();
-  }, []);
-
-  const seekTo = useCallback((seconds: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.currentTime = Math.max(0, seconds);
-  }, []);
 
   return (
     <Box sx={{ height: '100vh', display: "flex", flexDirection: "column" }}>
@@ -79,17 +69,21 @@ export default function HomeClient({ initialData, initialAudioId }: HomeClientPr
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, mt: 2 }}>
           <VideoPlayer
-            time={time}
-            setTime={setTime}
-            onPlayingChange={setIsPlaying}
-            src="https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_640x360.m4v"
-            play={play}
-            pause={pause}
-            seekTo={seekTo}
-            videoRef={videoRef} />
+            videoSrc="https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_640x360.m4v"
+            videoRef={media.videoRef}
+            audioSrc={media.audioSrc || undefined}
+            audioRef={media.audioRef}
+          />
         </Box>
       </Box>
-      <Timeline tracks={tracks} time={time} seekToAction={seekTo} playAction={play} pauseAction={pause} isPlaying={isPlaying} />
+      <Timeline
+        tracks={tracks}
+        time={media.time}
+        seekToAction={media.seekTo}
+        playAction={media.play}
+        pauseAction={media.pause}
+        durationSec={media.duration || undefined}
+        isPlaying={media.isPlaying} />
     </Box>
   )
 

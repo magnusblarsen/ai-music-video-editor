@@ -11,7 +11,6 @@ router = APIRouter(tags=["test"])
 
 @router.get("/health/db")
 def db_health(db: Session = Depends(get_db)):
-    print("testinsdf")
     db.execute(text("SELECT 1"))
     return {"ok": True}
 

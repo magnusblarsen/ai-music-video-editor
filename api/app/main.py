@@ -7,4 +7,4 @@ app = FastAPI(title="Video Generation API")
 app.include_router(api_router)
 
 # Dev
-app.mount("media", StaticFiles(directory="media"), name="media")
+app.mount("/api/media", StaticFiles(directory="media"), name="media")
