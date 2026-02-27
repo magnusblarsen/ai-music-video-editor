@@ -8,24 +8,32 @@ import { TestData } from "@/types";
 import Timeline from "./timeline/timeline";
 import UploadFile from "./upload-file";
 import GenerateVideo from "./generate-video";
-import { Track } from "@/types/editor";
+import { Clip, Track } from "@/types/editor";
 import { useMediaController } from "./hooks/useMediaController";
 
 type HomeClientProps = {
   initialData: TestData;
-  initialAudioId?: string;
+  initialTaskId?: string;
 }
 
+const AUDIO_SRC = "/api/media/never.mp3"; //NOTE: hardcoded
+const VIDEO_SRC = "/api/media/never.mp4";
+
+const audioClip: Clip = { src: VIDEO_SRC }
+const videoClip: Clip = { src: AUDIO_SRC, startTime: 0, duration: 10 }
+
 const defaultTracks: Track[] = [
-  { id: "v1", name: "Video 1", type: "video" },
-  { id: "a1", name: "Audio 1", type: "audio" },
+  { id: "v1", type: "video", clips: [audioClip] },
+  { id: "a1", type: "audio", clips: [videoClip] },
 ]
 
-export default function HomeClient({ initialData, initialAudioId }: HomeClientProps) {
+
+export default function HomeClient({ initialData, initialTaskId }: HomeClientProps) {
   const [example, setExample] = useState(initialData)
+  const [clipDurations, setClipDurations] = useState<Record<string, number>>({});
 
   const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [audioId, setAudioId] = useState<string | null>(initialAudioId || null);
+  const [taskId, setTaskId] = useState<string | null>(initialTaskId || null);
   const [tracks, setTracks] = useState<Track[]>(defaultTracks);
 
   async function refresh() {
@@ -37,8 +45,9 @@ export default function HomeClient({ initialData, initialAudioId }: HomeClientPr
 
   const media = useMediaController()
 
+
   // NOTE: hardcoded audio file
-  const audioUrl = audioId ? `/api/media/never.mp3` : null;
+  const audioUrl = taskId ? AUDIO_SRC : null;
 
   useEffect(() => {
     if (media.audioSrc !== audioUrl) {
@@ -56,9 +65,9 @@ export default function HomeClient({ initialData, initialAudioId }: HomeClientPr
           </Typography>
           <UploadFile
             onUploadedAction={(id: string) => {
-              setAudioId(id);
+              setTaskId(id);
             }}
-            audioId={audioId}
+            audioId={taskId}
             file={audioFile}
             setFileAction={setAudioFile}
           />
@@ -69,7 +78,7 @@ export default function HomeClient({ initialData, initialAudioId }: HomeClientPr
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, mt: 2 }}>
           <VideoPlayer
-            videoSrc="https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_640x360.m4v"
+            videoSrc={VIDEO_SRC}
             videoRef={media.videoRef}
             audioSrc={media.audioSrc || undefined}
             audioRef={media.audioRef}

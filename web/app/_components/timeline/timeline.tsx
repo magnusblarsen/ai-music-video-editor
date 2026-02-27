@@ -4,6 +4,7 @@ import React, { useRef, useState, useMemo, useEffect } from "react";
 import Ruler from "./ruler";
 import { formatTime } from "@/utils/formatTime";
 import { Track } from "@/types/editor";
+import WaveformTrack from "./WaveformTrack";
 
 
 function clamp(v: number, min: number, max: number) {
@@ -158,11 +159,16 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
   return (
     <Box className="flex flex-col flex-1 min-h-0 p-2">
       <Box className="flex justify-between">
-        {isPlaying ? (
-          <Button onClick={pauseAction} variant="outlined" className="m-1">Pause</Button>
-        ) : (
-          <Button onClick={playAction} variant="outlined" className="m-1">Play</Button>
-        )}
+        <Box>
+          {isPlaying ? (
+            <Button onClick={pauseAction} variant="outlined" className="m-1">Pause</Button>
+          ) : (
+            <Button onClick={playAction} variant="outlined" className="m-1">Play</Button>
+          )}
+          <Button onClick={fitToView} variant="outlined" className="m-1">
+            Zoom out
+          </Button>
+        </Box>
 
         <Box className="flex p-0 m-0 items-end">
           <Typography>{formatTime(time)}</Typography>
@@ -212,7 +218,17 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
                   borderBottom: "1px solid",
                   borderColor: "divider",
                 }}
-              />
+              >
+                {t.type === "audio" && (
+                  <WaveformTrack
+                    src={t.clips[0].src}        // adapt to your actual shape
+                    durationSec={durationSec}   // your “final duration = audio duration”
+                    pxPerSecond={pxPerSecond}
+                    height={trackHeight}
+                    width={totalWidthPx}
+                  />
+                )}
+              </Box>
             ))}
 
             <Box

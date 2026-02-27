@@ -4,8 +4,16 @@ export type JobStatus = {
   error?: string | null;
 }
 
+export type TrackType = "video" | "audio";
+
+export type Clip = {
+  src: string;
+  startTime?: number;
+  duration?: number;
+}
+
 export type Track = {
   id: string;
-  name: string;
-  type: "video" | "audio";
+  type: TrackType;
+  clips: Clip[];
 }
