@@ -5,11 +5,13 @@ import Ruler from "./ruler";
 import { formatTime } from "@/utils/formatTime";
 import { Track } from "@/types/editor";
 import WaveformTrack from "./WaveformTrack";
+import VideoTrack from "./VideoTrack";
 
 
 function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v));
 }
+
 type TimelineProps = {
   time: number;
   seekToAction: (seconds: number) => void;
@@ -58,7 +60,7 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
     return () => resizeObserver.disconnect();
   }, [durationSec])
 
-  const totalWidthPx = Math.max(1, durationSec * pxPerSecond);
+  const totalWidth = Math.max(1, durationSec * pxPerSecond);
 
   const majorStepSec = useMemo(() => {
     if (pxPerSecond >= 180) return 1;
@@ -189,7 +191,7 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
             flex: 1,
             cursor: "text"
           }}>
-          <Box sx={{ position: "relative", height: rulerHeight, width: totalWidthPx, borderBottom: "1px solid", borderColor: "divider" }}>
+          <Box sx={{ position: "relative", height: rulerHeight, width: totalWidth, borderBottom: "1px solid", borderColor: "divider" }}>
             <Ruler
               durationSec={durationSec}
               pxPerSecond={pxPerSecond}
@@ -201,7 +203,7 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
           <Box
             sx={{
               position: "relative",
-              width: totalWidthPx,
+              width: totalWidth,
               height: tracks.length * trackHeight,
               bgcolor: "background.default",
             }}
@@ -221,12 +223,13 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
               >
                 {t.type === "audio" && (
                   <WaveformTrack
-                    src={t.clips[0].src}        // adapt to your actual shape
-                    durationSec={durationSec}   // your “final duration = audio duration”
-                    pxPerSecond={pxPerSecond}
+                    src={t.clips[0].src}
                     height={trackHeight}
-                    width={totalWidthPx}
+                    width={totalWidth}
                   />
+                )}
+                {t.type === "video" && (
+                  <VideoTrack clips={t.clips} height={trackHeight} width={totalWidth} pxPerSecond={pxPerSecond} />
                 )}
               </Box>
             ))}
@@ -247,10 +250,10 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
                 "&::before": {
                   content: '""',
                   position: "absolute",
-                  top: -rulerHeight,
-                  left: -6,
-                  width: 12,
-                  height: 12,
+                  top: -(rulerHeight / 2),
+                  left: -(rulerHeight / 4),
+                  width: (rulerHeight / 2),
+                  height: (rulerHeight / 2),
                   borderRadius: "2px",
                   bgcolor: "primary.main",
                 },

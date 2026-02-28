@@ -8,8 +8,8 @@ export type TrackType = "video" | "audio";
 
 export type Clip = {
   src: string;
+  duration: number;
   startTime?: number;
-  duration?: number;
 }
 
 export type Track = {

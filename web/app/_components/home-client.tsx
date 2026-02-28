@@ -2,7 +2,6 @@
 
 import { Typography, Box, Switch } from "@mui/material";
 import VideoPlayer from "./video-player";
-import InputContainer from "@/components/input-container";
 import { useState, useEffect } from "react";
 import { TestData } from "@/types";
 import Timeline from "./timeline/timeline";
@@ -19,18 +18,17 @@ type HomeClientProps = {
 const AUDIO_SRC = "/api/media/never.mp3"; //NOTE: hardcoded
 const VIDEO_SRC = "/api/media/never.mp4";
 
-const audioClip: Clip = { src: VIDEO_SRC }
-const videoClip: Clip = { src: AUDIO_SRC, startTime: 0, duration: 10 }
+const audioClip: Clip = { src: AUDIO_SRC }
+const videoClip: Clip = { src: VIDEO_SRC, startTime: 0, duration: 60 }
 
 const defaultTracks: Track[] = [
-  { id: "v1", type: "video", clips: [audioClip] },
-  { id: "a1", type: "audio", clips: [videoClip] },
+  { id: "v1", type: "video", clips: [videoClip] },
+  { id: "a1", type: "audio", clips: [audioClip] },
 ]
 
 
 export default function HomeClient({ initialData, initialTaskId }: HomeClientProps) {
   const [example, setExample] = useState(initialData)
-  const [clipDurations, setClipDurations] = useState<Record<string, number>>({});
 
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [taskId, setTaskId] = useState<string | null>(initialTaskId || null);
@@ -45,7 +43,6 @@ export default function HomeClient({ initialData, initialTaskId }: HomeClientPro
 
   const media = useMediaController()
 
-
   // NOTE: hardcoded audio file
   const audioUrl = taskId ? AUDIO_SRC : null;
 
@@ -54,7 +51,6 @@ export default function HomeClient({ initialData, initialTaskId }: HomeClientPro
       media.setAudioSrc(audioUrl);
     }
   }, [audioUrl])
-
 
   return (
     <Box sx={{ height: '100vh', display: "flex", flexDirection: "column" }}>
@@ -72,9 +68,6 @@ export default function HomeClient({ initialData, initialTaskId }: HomeClientPro
             setFileAction={setAudioFile}
           />
           <GenerateVideo />
-          <InputContainer label="Make it faster!" float="top">
-            <Switch />
-          </InputContainer>
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, mt: 2 }}>
           <VideoPlayer
