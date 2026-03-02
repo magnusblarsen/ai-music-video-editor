@@ -1,16 +1,14 @@
 from pathlib import Path
 import uuid
+import asyncio
 
 from typing import Annotated
-from fastapi import UploadFile, File, HTTPException, BackgroundTasks, APIRouter
+from fastapi import UploadFile, File, HTTPException, BackgroundTasks, APIRouter, BackgroundTasks
+from dotenv import load_dotenv
 
 from app.core.config import get_directories
 from app.services.task_store import task_store
-from app.services.staging import stage_audio
-from app.models import TaskRecord, TaskState
-
-from dotenv import load_dotenv
-import os
+from app.services.slurm import stage_audio, run_slurm_job
 
 router = APIRouter(tags=["tasks"])
 
@@ -51,10 +49,14 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
 @router.get("/status/{task_id}")
 async def get_status(task_id: str):
     load_dotenv()
-    if task_id == os.getenv("AUDIO_ID_FOR_TEST"):
-        return TaskRecord(task_id=task_id, state=TaskState.staging, progress=100)
-
     task = task_store.get(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Not found")
     return task
+
+
+@router.post("/run/{task_id}")
+async def run_task(task_id: str):
+    task_store.require(task_id)
+    asyncio.create_task(run_slurm_job(task_id))
+    return {"ok": True, "task_id": task_id}

@@ -15,7 +15,13 @@ class HpcClient:
             known_hosts=self.settings.known_hosts,
         ) as conn:
             result = await conn.run(command, check=check)
-            return result.stdout
+
+            rc, out, err = result.returncode, result.stdout, result.stderr
+
+            if rc != 0:
+                raise RuntimeError(f"sbatch failed rc={rc}, stderr={err.strip()}, stdout={out.strip()}")
+
+            return out
 
     async def mkdir(self, remote_dir: str) -> None:
         await self.run(f"mkdir -p {remote_dir}", check=True)

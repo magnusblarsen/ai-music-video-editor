@@ -1,19 +1,32 @@
+export enum JobState {
+  QUEUED = "queued",
+  STAGING = "staging",
+  READY = "ready",
+  RUNNING = "running",
+  DONE = "done",
+  FAILED = "failed"
+}
 
 export type JobStatus = {
-  state: "queued" | "staging" | "ready" | "running" | "done" | "failed";
+  state: JobState;
   error?: string | null;
 }
 
 export type TrackType = "video" | "audio";
 
-export type Clip = {
+export type BaseClip = {
   src: string;
-  duration: number;
-  startTime?: number;
 }
+
+export type VideoClip = BaseClip & {
+  duration: number;
+  startTime: number;
+}
+
+export type AudioClip = BaseClip;
 
 export type Track = {
   id: string;
   type: TrackType;
-  clips: Clip[];
+  clips: BaseClip[];
 }

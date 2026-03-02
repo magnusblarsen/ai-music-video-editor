@@ -1,5 +1,6 @@
 from threading import Lock
-from app.models import TaskRecord
+from app.models import TaskRecord, TaskState
+import os
 
 # TODO: Should be real db
 
@@ -16,6 +17,9 @@ class InMemoryTaskStore:
             return task
 
     def get(self, task_id: str) -> TaskRecord | None:
+        if task_id == os.getenv("AUDIO_ID_FOR_TEST"):
+            return TaskRecord(task_id=task_id, state=TaskState.ready, progress=100)
+
         with self._lock:
             return self._tasks.get(task_id)
 

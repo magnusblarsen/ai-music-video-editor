@@ -15,7 +15,7 @@ class Settings:
 @dataclass(frozen=True)
 class Directories:
     staging: Path
-    hpc_remote_base: Path
+    hpc_tasks_base: Path
 
 
 def get_hpc_config() -> Settings:
@@ -26,7 +26,7 @@ def get_hpc_config() -> Settings:
     hpc_ssh_key = os.getenv("HPC_SSH_KEY")
 
     if not hpc_host or not hpc_user or not hpc_ssh_key:
-        raise RuntimeError("Missing HPC_HOST/HPC_USER/HPC_SSH_KEY")
+        raise RuntimeError("Missing some variable")
 
     return Settings(
         hpc_host=hpc_host,
@@ -42,11 +42,11 @@ def get_directories() -> Directories:
 
     load_dotenv()
 
-    hpc_remote_base = os.getenv("HPC_REMOTE_BASE")
+    hpc_remote_base = os.getenv("HPC_TASKS_BASE")
     if not hpc_remote_base:
-        raise ValueError("HPC_REMOTE_BASE environment variable is not set")
+        raise ValueError("HPC_TASKS_BASE environment variable is not set")
 
     return Directories(
         staging=staging_dir,
-        hpc_remote_base=Path(hpc_remote_base),
+        hpc_tasks_base=Path(hpc_remote_base),
     )

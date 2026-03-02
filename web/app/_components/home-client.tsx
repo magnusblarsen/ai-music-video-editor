@@ -1,14 +1,15 @@
 "use client"
 
-import { Typography, Box, Switch } from "@mui/material";
+import { Typography, Box } from "@mui/material";
 import VideoPlayer from "./video-player";
 import { useState, useEffect } from "react";
-import { TestData } from "@/types";
+import { TestData, JobStatus } from "@/types";
 import Timeline from "./timeline/timeline";
 import UploadFile from "./upload-file";
 import GenerateVideo from "./generate-video";
-import { Clip, Track } from "@/types/editor";
+import { AudioClip, VideoClip, Track } from "@/types/editor";
 import { useMediaController } from "./hooks/useMediaController";
+import { useQuery } from "@tanstack/react-query";
 
 type HomeClientProps = {
   initialData: TestData;
@@ -18,8 +19,8 @@ type HomeClientProps = {
 const AUDIO_SRC = "/api/media/never.mp3"; //NOTE: hardcoded
 const VIDEO_SRC = "/api/media/never.mp4";
 
-const audioClip: Clip = { src: AUDIO_SRC }
-const videoClip: Clip = { src: VIDEO_SRC, startTime: 0, duration: 60 }
+const audioClip: AudioClip = { src: AUDIO_SRC }
+const videoClip: VideoClip = { src: VIDEO_SRC, startTime: 0, duration: 60 }
 
 const defaultTracks: Track[] = [
   { id: "v1", type: "video", clips: [videoClip] },
@@ -40,6 +41,30 @@ export default function HomeClient({ initialData, initialTaskId }: HomeClientPro
     const data = (await res.json()) as TestData;
     setExample(data);
   }
+
+  async function fetchStatus(id: string): Promise<JobStatus> {
+    const res = await fetch(`/api/status/${id}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Status fetch failed: ${res.status}`);
+    return (await res.json()) as JobStatus;
+  }
+
+  const statusQuery = useQuery({
+    queryKey: ["status", taskId],
+    queryFn: () => fetchStatus(taskId!),
+    enabled: !!taskId,
+    refetchInterval: (query) => {
+      if (query.state.status === "error") return false;
+
+      const status = query.state.data?.state;
+
+      if (!status) return 5000;
+
+      return ["staging", "done", "failed"].includes(status) ? false : 5000;
+    },
+  })
+
+  const jobStatus = statusQuery.data ?? (taskId ? { state: "queued" } : null) as JobStatus | null;
+
 
   const media = useMediaController()
 
@@ -63,11 +88,11 @@ export default function HomeClient({ initialData, initialTaskId }: HomeClientPro
             onUploadedAction={(id: string) => {
               setTaskId(id);
             }}
-            audioId={taskId}
             file={audioFile}
             setFileAction={setAudioFile}
+            jobStatus={jobStatus}
           />
-          <GenerateVideo />
+          <GenerateVideo taskId={taskId} jobStatus={jobStatus} />
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, mt: 2 }}>
           <VideoPlayer

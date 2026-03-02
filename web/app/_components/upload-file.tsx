@@ -8,38 +8,14 @@ import { JobStatus } from "@/types/editor";
 
 type UploadFileProps = {
   onUploadedAction: (id: string) => void;
-  audioId: string | null;
   file: File | null;
   setFileAction: (file: File | null) => void;
+  jobStatus: JobStatus | null;
 }
 
-export default function UploadFile({ onUploadedAction, audioId, file, setFileAction }: UploadFileProps) {
+export default function UploadFile({ onUploadedAction, file, setFileAction, jobStatus }: UploadFileProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
-
-  async function fetchStatus(id: string): Promise<JobStatus> {
-    const res = await fetch(`/api/status/${id}`, { cache: "no-store" });
-    if (!res.ok) throw new Error(`Status fetch failed: ${res.status}`);
-    return (await res.json()) as JobStatus;
-  }
-
-  const statusQuery = useQuery({
-    queryKey: ["status", audioId],
-    queryFn: () => fetchStatus(audioId!),
-    enabled: !!audioId,
-    refetchInterval: (query) => {
-      if (query.state.status === "error") return false;
-
-      const status = query.state.data?.state;
-
-      if (!status) return 5000;
-
-      return ["staging", "done", "failed"].includes(status) ? false : 5000;
-    },
-  })
-
-  const jobStatus = statusQuery.data ?? (audioId ? { state: "queued" } : null);
-
 
   const handleSelectClick = () => {
     inputRef.current?.click();

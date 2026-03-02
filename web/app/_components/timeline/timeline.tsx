@@ -25,6 +25,7 @@ type TimelineProps = {
 export default function Timeline({ time, seekToAction, playAction, pauseAction, isPlaying, durationSec = 120, tracks }: TimelineProps) {
   const rulerHeight = 30
   const trackHeight = 50
+  const playHeadTopHeight = 13 // rulerHeight / 2
 
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
@@ -189,7 +190,6 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
             overflowX: "auto",
             whiteSpace: "nowrap",
             flex: 1,
-            cursor: "text"
           }}>
           <Box sx={{ position: "relative", height: rulerHeight, width: totalWidth, borderBottom: "1px solid", borderColor: "divider" }}>
             <Ruler
@@ -250,10 +250,10 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
                 "&::before": {
                   content: '""',
                   position: "absolute",
-                  top: -(rulerHeight / 2),
-                  left: -(rulerHeight / 4),
-                  width: (rulerHeight / 2),
-                  height: (rulerHeight / 2),
+                  top: -(playHeadTopHeight),
+                  left: -(playHeadTopHeight / 2),
+                  width: (playHeadTopHeight),
+                  height: (playHeadTopHeight),
                   borderRadius: "2px",
                   bgcolor: "primary.main",
                 },
