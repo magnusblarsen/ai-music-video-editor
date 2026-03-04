@@ -5,6 +5,8 @@ import asyncio
 from typing import Annotated
 from fastapi import UploadFile, File, HTTPException, BackgroundTasks, APIRouter, BackgroundTasks
 from dotenv import load_dotenv
+from app.models import TaskState
+from app.tasks import transition
 
 from app.core.config import get_directories
 from app.services.task_store import task_store
@@ -56,7 +58,12 @@ async def get_status(task_id: str):
 
 
 @router.post("/run/{task_id}")
-async def run_task(task_id: str):
-    task_store.require(task_id)
-    asyncio.create_task(run_slurm_job(task_id))
+async def run_task(task_id: str, background_tasks: BackgroundTasks):
+    task = task_store.require(task_id)
+
+    if task.state in {TaskState.running, TaskState.queued}:
+        return {"ok": True, "task_id": task_id, "state": task.state}
+
+    background_tasks.add_task(run_slurm_job, task_id=task_id)
+
     return {"ok": True, "task_id": task_id}

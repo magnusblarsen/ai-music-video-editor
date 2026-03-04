@@ -15,31 +15,49 @@ async def run_slurm_job(task_id: str) -> None:
     """
     directories = get_directories()
     settings = get_hpc_config()
-    client = HpcClient(settings)
+    async with HpcClient(settings) as client:
 
-    task = task_store.require(task_id)
+        task = task_store.require(task_id)
 
-    remote_dir = f"{directories.hpc_tasks_base}/{task_id}"
-    remote_job_script = f"{remote_dir}/job.sbatch"
+        remote_dir = f"{directories.hpc_tasks_base}/{task_id}"
+        remote_job_script = f"{remote_dir}/job.sbatch"
 
-    try:
-        transition(task, TaskState.running, message="Submitting Slurm job", progress=0)
+        try:
+            transition(task, TaskState.running, message="Submitting Slurm job", progress=0)
 
-        submit_cmd = f"sbatch {remote_job_script}"
+            print("before ls")
+            files_in_dir = await client.run(f"ls -1 {remote_dir}")
 
-        result = await client.run(submit_cmd)
+            audio_file = next((line for line in files_in_dir.splitlines() if line.strip().endswith(('.wav', '.mp3'))), None)
+            if not audio_file:
+                raise FileNotFoundError("No audio file found in remote directory")
 
-        job_id = result.strip().split()[-1]
+            print(f"Found audio file: {audio_file}")
 
-        print(f"Submitted job {job_id} for audio {task_id}")
+            remote_audio_path = audio_file.strip()
+            remote_job_script = f"{remote_dir}/job.sbatch"
 
-        transition(task, TaskState.running, message=f"Job submitted (ID: {job_id})", progress=50)
+            print(f"Uploading job script to {remote_job_script}")
+            job_contents = build_job_script(remote_dir=remote_dir, remote_audio_path=remote_audio_path)
+            await client.sftp_put_text(job_contents, remote_job_script)
+            print("Job script uploaded")
 
-        # TODO: Poll job status
-        # transition(task, TaskState.done, message=f"Job completed (ID: {job_id})", progress=100)
-    except Exception as e:
-        transition(task, TaskState.failed, message="Job submission failed", progress=100)
-        task.error = str(e)
+            submit_cmd = f"sbatch {remote_job_script}"
+
+            print(f"Submitting job with command: {submit_cmd}")
+            result = await client.run(submit_cmd)
+
+            job_id = result.strip().split()[-1]
+
+            print(f"Submitted job {job_id} for audio {task_id}")
+
+            transition(task, TaskState.running, message=f"Job submitted (ID: {job_id})", progress=50)
+
+            # TODO: Poll job status
+            # transition(task, TaskState.done, message=f"Job completed (ID: {job_id})", progress=100)
+        except Exception as e:
+            transition(task, TaskState.failed, message="Job submission failed", progress=100)
+            task.error = str(e)
 
 
 async def stage_audio(audio_id: str, local_path: str, ext: str) -> None:
@@ -57,7 +75,6 @@ async def stage_audio(audio_id: str, local_path: str, ext: str) -> None:
 
     remote_dir = f"{directories.hpc_tasks_base}/{audio_id}"
     remote_audio_path = f"{remote_dir}/input{ext}"
-    remote_job_script = f"{remote_dir}/job.sbatch"
 
     try:
         transition(task, TaskState.staging, message="Uploading audio to HPC", progress=20)
@@ -65,9 +82,6 @@ async def stage_audio(audio_id: str, local_path: str, ext: str) -> None:
         await client.mkdir(remote_dir)
 
         await client.sftp_put(local_path, remote_audio_path)
-
-        job_contents = build_job_script(remote_dir=remote_dir, remote_audio_path=remote_audio_path)
-        await client.sftp_put_text(job_contents, remote_job_script)
 
         transition(task, TaskState.ready, message="Uploaded Audio", progress=100)
 

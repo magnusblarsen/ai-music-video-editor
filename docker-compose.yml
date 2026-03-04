@@ -8,6 +8,8 @@ services:
       - "8000:8000"
     volumes:
       - ./api:/app
+      - ~/.ssh/id_rsa:/run/secrets/id_rsa:ro
+      - ~/.ssh/known_hosts:/run/secrets/known_hosts:ro
     env_file:
       - ./api/.env
     depends_on:

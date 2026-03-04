@@ -1,58 +1,121 @@
 import asyncssh
-
-from app.core.config import Settings
+from typing import Optional
 
 
 class HpcClient:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings):
         self.settings = settings
+        self._conn: Optional[asyncssh.SSHClientConnection] = None
+        self._sftp: Optional[asyncssh.SFTPClient] = None
+
+    async def __aenter__(self):
+        print("in aenter")
+        self._conn = await asyncssh.connect(
+            self.settings.hpc_host,
+            username=self.settings.hpc_user,
+            client_keys=[self.settings.hpc_ssh_key],
+            known_hosts=self.settings.known_hosts,
+            login_timeout=15,
+            keepalive_interval=30,
+            keepalive_count_max=3,
+        )
+        print("connected")
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if self._sftp:
+            self._sftp.exit()
+            self._sftp = None
+        if self._conn:
+            self._conn.close()
+            await self._conn.wait_closed()
+            self._conn = None
 
     async def run(self, command: str, check: bool = True) -> str:
-        async with asyncssh.connect(
-            self.settings.hpc_host,
-            username=self.settings.hpc_user,
-            client_keys=[self.settings.hpc_ssh_key],
-            known_hosts=self.settings.known_hosts,
-        ) as conn:
-            result = await conn.run(command, check=check)
+        assert self._conn is not None
 
-            rc, out, err = result.returncode, result.stdout, result.stderr
+        result = await self._conn.run(command, check=check)
 
-            if rc != 0:
-                raise RuntimeError(f"sbatch failed rc={rc}, stderr={err.strip()}, stdout={out.strip()}")
+        rc, out, err = result.returncode, result.stdout, result.stderr
+        if rc != 0:
+            raise RuntimeError(
+                f"command failed rc={rc}, stderr={err.strip()}, stdout={out.strip()}"
+            )
+        return out
 
-            return out
+    async def sftp(self) -> asyncssh.SFTPClient:
+        assert self._conn is not None
+        if not self._sftp:
+            self._sftp = await self._conn.start_sftp_client()
+        return self._sftp
 
     async def mkdir(self, remote_dir: str) -> None:
-        await self.run(f"mkdir -p {remote_dir}", check=True)
+        await self.run(f"mkdir -p {remote_dir}")
 
     async def sftp_put(self, local_path: str, remote_path: str) -> None:
-        async with asyncssh.connect(
-            self.settings.hpc_host,
-            username=self.settings.hpc_user,
-            client_keys=[self.settings.hpc_ssh_key],
-            known_hosts=self.settings.known_hosts,
-        ) as conn:
-            async with conn.start_sftp_client() as sftp:
-                await sftp.put(local_path, remote_path)
+        sftp = await self.sftp()
+        await sftp.put(local_path, remote_path)
 
     async def sftp_get(self, remote_path: str, local_path: str) -> None:
-        async with asyncssh.connect(
-            self.settings.hpc_host,
-            username=self.settings.hpc_user,
-            client_keys=[self.settings.hpc_ssh_key],
-            known_hosts=self.settings.known_hosts,
-        ) as conn:
-            async with conn.start_sftp_client() as sftp:
-                await sftp.get(remote_path, local_path)
+        sftp = await self.sftp()
+        await sftp.get(remote_path, local_path)
 
     async def sftp_put_text(self, text: str, remote_path: str, encoding: str = "utf-8") -> None:
-        # Write via SFTP by creating a temporary file content on remote using a heredoc.
-        # Simple + avoids needing a temp local file.
-        safe = text.replace("'", "'\"'\"'")  # minimal single-quote escaping for bash
-        cmd = f"bash -lc 'cat > {remote_path} << \"__EOF__\"\n{safe}\n__EOF__\n'"
-        await self.run(cmd, check=True)
+        sftp = await self.sftp()
+        async with sftp.open(remote_path, "w", encoding=encoding) as f:
+            await f.write(text)
 
-        # Old way I did it:
-        # tmp_local_job = Path("/tmp") / f"job_{uuid.uuid4()}.sbatch"
-        # tmp_local_job.write_text(job_contents, encoding="utf-8")
+
+# class HpcClient:
+#     def __init__(self, settings: Settings) -> None:
+#         self.settings = settings
+#
+#     async def run(self, command: str, check: bool = True) -> str:
+#         async with asyncssh.connect(
+#             self.settings.hpc_host,
+#             username=self.settings.hpc_user,
+#             client_keys=[self.settings.hpc_ssh_key],
+#             known_hosts=self.settings.known_hosts,
+#         ) as conn:
+#             result = await conn.run(command, check=check)
+#
+#             rc, out, err = result.returncode, result.stdout, result.stderr
+#
+#             if rc != 0:
+#                 raise RuntimeError(f"sbatch failed rc={rc}, stderr={err.strip()}, stdout={out.strip()}")
+#
+#             return out
+#
+#     async def mkdir(self, remote_dir: str) -> None:
+#         await self.run(f"mkdir -p {remote_dir}", check=True)
+#
+#     async def sftp_put(self, local_path: str, remote_path: str) -> None:
+#         async with asyncssh.connect(
+#             self.settings.hpc_host,
+#             username=self.settings.hpc_user,
+#             client_keys=[self.settings.hpc_ssh_key],
+#             known_hosts=self.settings.known_hosts,
+#         ) as conn:
+#             async with conn.start_sftp_client() as sftp:
+#                 await sftp.put(local_path, remote_path)
+#
+#     async def sftp_get(self, remote_path: str, local_path: str) -> None:
+#         async with asyncssh.connect(
+#             self.settings.hpc_host,
+#             username=self.settings.hpc_user,
+#             client_keys=[self.settings.hpc_ssh_key],
+#             known_hosts=self.settings.known_hosts,
+#         ) as conn:
+#             async with conn.start_sftp_client() as sftp:
+#                 await sftp.get(remote_path, local_path)
+#
+#     async def sftp_put_text(self, text: str, remote_path: str, encoding: str = "utf-8") -> None:
+#         # Write via SFTP by creating a temporary file content on remote using a heredoc.
+#         # Simple + avoids needing a temp local file.
+#         safe = text.replace("'", "'\"'\"'")  # minimal single-quote escaping for bash
+#         cmd = f"bash -lc 'cat > {remote_path} << \"__EOF__\"\n{safe}\n__EOF__\n'"
+#         await self.run(cmd, check=True)
+#
+#         # Old way I did it:
+#         # tmp_local_job = Path("/tmp") / f"job_{uuid.uuid4()}.sbatch"
+#         # tmp_local_job.write_text(job_contents, encoding="utf-8")
