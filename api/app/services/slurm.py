@@ -25,7 +25,6 @@ async def run_slurm_job(task_id: str) -> None:
         try:
             transition(task, TaskState.running, message="Submitting Slurm job", progress=0)
 
-            print("before ls")
             files_in_dir = await client.run(f"ls -1 {remote_dir}")
 
             audio_file = next((line for line in files_in_dir.splitlines() if line.strip().endswith(('.wav', '.mp3'))), None)
@@ -34,17 +33,15 @@ async def run_slurm_job(task_id: str) -> None:
 
             print(f"Found audio file: {audio_file}")
 
-            remote_audio_path = audio_file.strip()
+            remote_audio_path = f"{remote_dir}/{audio_file.strip()}"
             remote_job_script = f"{remote_dir}/job.sbatch"
 
             print(f"Uploading job script to {remote_job_script}")
             job_contents = build_job_script(remote_dir=remote_dir, remote_audio_path=remote_audio_path)
             await client.sftp_put_text(job_contents, remote_job_script)
-            print("Job script uploaded")
 
             submit_cmd = f"sbatch {remote_job_script}"
 
-            print(f"Submitting job with command: {submit_cmd}")
             result = await client.run(submit_cmd)
 
             job_id = result.strip().split()[-1]
@@ -90,6 +87,7 @@ async def stage_audio(audio_id: str, local_path: str, ext: str) -> None:
         task.error = str(e)
 
 
+# TODO: audio_file is relative path. Fix it
 def build_job_script(remote_dir: str, remote_audio_path: str) -> str:
     job_name = f"audio_{Path(remote_dir).name}"
 
@@ -97,25 +95,35 @@ def build_job_script(remote_dir: str, remote_audio_path: str) -> str:
 #SBATCH --job-name={job_name}
 #SBATCH --output={remote_dir}/clap-%j.out
 #SBATCH --error={remote_dir}/clap-%j.err
-#SBATCH --time=04:00:00
+#SBATCH --time=12:00:00
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
 #SBATCH --partition=dgx1
 #SBATCH --cpus-per-task=8 # 16
-#SBATCH --mem=32G # 96G
+#SBATCH --mem=48G # 96G
 
 
 set -euo pipefail
 
+TEST_RUN_NAME="test_run_{Path(remote_dir).name}"
+AUDIO_PATH="{remote_audio_path}"
+RUN_DESCRIPTION="LALM test"
+ADDITIONAL_PROMPT="The story should have at least one plot twist."
+FORCED_VIDEO_PROMPT=""
+
 echo "Running on $(hostname)"
-echo "Input: {remote_audio_path}"
 nvidia-smi
 
 source /usr/local/minicondas/Miniconda3-py312_25.9.1-3-Linux-aarch64/etc/profile.d/conda.sh
 conda activate /home/brml/DGX1/mycondas/gpu312
 
-cd /home/brml/LTX-2-test
-python main.py
+# TODO: delete?
+# module load cuda/12.6.3 latex/TexLive24 ffmpeg/7.0.1 cudnn/v9.6.0.74-prod-cuda-12.X
 
-# python /path/to/your_pipeline.py --audio "{remote_audio_path}" --out "{remote_dir}/out"
+
+cd /home/brml/Music-Visualization-Generation-Pipeline
+
+echo "Running main.py with variables: $TEST_RUN_NAME, $AUDIO_PATH, $RUN_DESCRIPTION, $ADDITIONAL_PROMPT, $FORCED_VIDEO_PROMPT"
+
+python src/main.py "$TEST_RUN_NAME" "$AUDIO_PATH" "$RUN_DESCRIPTION" "$ADDITIONAL_PROMPT" "$FORCED_VIDEO_PROMPT"
 """

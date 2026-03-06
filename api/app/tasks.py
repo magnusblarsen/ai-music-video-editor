@@ -1,6 +1,7 @@
 from app.models import TaskState, TaskRecord
 from datetime import datetime
 
+# TODO: TaskState.videos_segmented
 ALLOWED_TRANSITIONS = {
     TaskState.queued: {TaskState.running, TaskState.failed},
     TaskState.staging: {TaskState.ready, TaskState.failed},
