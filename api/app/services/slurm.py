@@ -1,63 +1,78 @@
 from pathlib import Path
 from app.core.config import get_hpc_config, get_directories
-from app.services.task_store import task_store
 from app.services.hpc_client import HpcClient
+from app.db import SessionLocal
+from app.repositories.task_repository import TaskRepository
 
 from app.models import TaskState
-from app.tasks import transition
 
 
+# TODO: do this
 async def run_slurm_job(task_id: str) -> None:
-    """
-    Background worker function:
-    - Submit Slurm job
-    - Update in-memory task status
-    """
     directories = get_directories()
     settings = get_hpc_config()
-    async with HpcClient(settings) as client:
+    db = SessionLocal()
 
-        task = task_store.require(task_id)
+    try:
+        repo = TaskRepository(db)
 
-        remote_dir = f"{directories.hpc_tasks_base}/{task_id}"
-        remote_job_script = f"{remote_dir}/job.sbatch"
+        async with HpcClient(settings) as client:
+            remote_dir = f"{directories.hpc_tasks_base}/{task_id}"
+            remote_job_script = f"{remote_dir}/job.sbatch"
 
-        try:
-            transition(task, TaskState.running, message="Submitting Slurm job", progress=0)
+            repo.update_state(
+                task_id,
+                state=TaskState.running,
+                message="Submitting Slurm job",
+                progress=0,
+            )
 
             files_in_dir = await client.run(f"ls -1 {remote_dir}")
 
-            audio_file = next((line for line in files_in_dir.splitlines() if line.strip().endswith(('.wav', '.mp3'))), None)
+            audio_file = next(
+                (
+                    line
+                    for line in files_in_dir.splitlines()
+                    if line.strip().endswith((".wav", ".mp3"))
+                ),
+                None,
+            )
             if not audio_file:
                 raise FileNotFoundError("No audio file found in remote directory")
 
-            print(f"Found audio file: {audio_file}")
-
             remote_audio_path = f"{remote_dir}/{audio_file.strip()}"
-            remote_job_script = f"{remote_dir}/job.sbatch"
-
-            print(f"Uploading job script to {remote_job_script}")
-            job_contents = build_job_script(remote_dir=remote_dir, remote_audio_path=remote_audio_path)
+            job_contents = build_job_script(
+                remote_dir=remote_dir,
+                remote_audio_path=remote_audio_path,
+            )
             await client.sftp_put_text(job_contents, remote_job_script)
 
-            submit_cmd = f"sbatch {remote_job_script}"
-
-            result = await client.run(submit_cmd)
-
+            result = await client.run(f"sbatch {remote_job_script}")
             job_id = result.strip().split()[-1]
 
-            print(f"Submitted job {job_id} for audio {task_id}")
+            repo.update_state(
+                task_id,
+                state=TaskState.running,
+                message=f"Job submitted (ID: {job_id})",
+                progress=50,
+            )
 
-            transition(task, TaskState.running, message=f"Job submitted (ID: {job_id})", progress=50)
+    except Exception as e:
+        try:
+            repo.update_state(
+                task_id,
+                state=TaskState.failed,
+                message="Job submission failed",
+                progress=100,
+                error=str(e),
+            )
+        except Exception:
+            pass
+    finally:
+        db.close()
 
-            # TODO: Poll job status
-            # transition(task, TaskState.done, message=f"Job completed (ID: {job_id})", progress=100)
-        except Exception as e:
-            transition(task, TaskState.failed, message="Job submission failed", progress=100)
-            task.error = str(e)
 
-
-async def stage_audio(audio_id: str, local_path: str, ext: str) -> None:
+async def stage_audio(task_id: str, local_path: str, ext: str) -> None:
     """
     Background worker function:
     - Upload audio file to HPC
@@ -66,28 +81,44 @@ async def stage_audio(audio_id: str, local_path: str, ext: str) -> None:
     """
     directories = get_directories()
     settings = get_hpc_config()
-    client = HpcClient(settings)
-
-    task = task_store.require(audio_id)
-
-    remote_dir = f"{directories.hpc_tasks_base}/{audio_id}"
-    remote_audio_path = f"{remote_dir}/input{ext}"
+    db = SessionLocal()
 
     try:
-        transition(task, TaskState.staging, message="Uploading audio to HPC", progress=20)
+        repo = TaskRepository(db)
 
-        await client.mkdir(remote_dir)
+        remote_dir = f"{directories.hpc_tasks_base}/{task_id}"
+        remote_audio_path = f"{remote_dir}/input{ext}"
+        client = HpcClient(settings)
+        async with HpcClient(settings) as client:
+            repo.update_state(
+                task_id,
+                state=TaskState.staging,
+                message="Uploading audio to HPC",
+                progress=20,
+            )
 
-        await client.sftp_put(local_path, remote_audio_path)
+            await client.mkdir(remote_dir)
+            await client.sftp_put(local_path, remote_audio_path)
 
-        transition(task, TaskState.ready, message="Uploaded Audio", progress=100)
+            repo.update_state(
+                task_id,
+                state=TaskState.ready,
+                message="Uploaded Audio",
+                progress=100
+            )
 
     except Exception as e:
-        transition(task, TaskState.failed, message="Upload failed", progress=100)
-        task.error = str(e)
+        repo.update_state(
+            task_id,
+            state=TaskState.failed,
+            message="Upload failed",
+            progress=100,
+            error=str(e)
+        )
+    finally:
+        db.close()
 
 
-# TODO: audio_file is relative path. Fix it
 def build_job_script(remote_dir: str, remote_audio_path: str) -> str:
     job_name = f"audio_{Path(remote_dir).name}"
 
