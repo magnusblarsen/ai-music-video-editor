@@ -14,7 +14,7 @@ class Settings:
 
 @dataclass(frozen=True)
 class Directories:
-    staging: Path
+    media: Path
     hpc_tasks_base: Path
 
 
@@ -37,8 +37,8 @@ def get_hpc_config() -> Settings:
 
 
 def get_directories() -> Directories:
-    staging_dir = Path("/tmp/uploads")
-    staging_dir.mkdir(parents=True, exist_ok=True)
+    media_dir = Path("/app/media")
+    media_dir.mkdir(parents=True, exist_ok=True)
 
     load_dotenv()
 
@@ -47,6 +47,6 @@ def get_directories() -> Directories:
         raise ValueError("HPC_TASKS_BASE environment variable is not set")
 
     return Directories(
-        staging=staging_dir,
+        media=media_dir,
         hpc_tasks_base=Path(hpc_remote_base),
     )

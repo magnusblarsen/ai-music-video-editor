@@ -47,6 +47,9 @@ export default function UploadFile({ onUploadedAction, file, setFileAction, jobS
       queryClient.invalidateQueries({
         queryKey: ["status", data.task_id],
       })
+      queryClient.invalidateQueries({
+        queryKey: ["tasks"],
+      })
     },
     onError: (error) => {
       toast.error(`Upload failed: ${error.message}`);

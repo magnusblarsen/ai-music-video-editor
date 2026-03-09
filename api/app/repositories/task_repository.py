@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app.models import TaskRecord, TaskState
 
@@ -15,6 +16,9 @@ class TaskRepository:
 
     def get(self, id: int) -> TaskRecord | None:
         return self.db.get(TaskRecord, id)
+
+    def list(self) -> list[TaskRecord]:
+        return list(self.db.scalars(select(TaskRecord)))
 
     def require(self, id: int) -> TaskRecord:
         task = self.get(id)

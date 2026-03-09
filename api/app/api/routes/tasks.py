@@ -11,7 +11,14 @@ from app.services.slurm import stage_audio, run_slurm_job
 router = APIRouter(tags=["tasks"])
 
 
+@router.get("/tasks")
+async def get_tasks(db=Depends(get_db)):
+    repo = TaskRepository(db)
+    return repo.list()
+
 # TODO: don't create id manually
+
+
 @router.post("/upload-audio")
 async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[UploadFile, File()], db=Depends(get_db)):
     if not file.content_type or not file.content_type.startswith("audio/"):
@@ -24,30 +31,37 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
     repo = TaskRepository(db)
     task = repo.create()
     task_id = str(task.id)
-    local_path = f"{directories.staging}/{task_id}{ext}"
+    local_path = directories.media / f"{task_id}{ext}"
 
     try:
         with local_path.open("wb") as out:
+            print("Saving file to:", local_path)
+            print("Resolved path:", local_path.resolve())
             while True:
                 chunk = await file.read(1024 * 1024)  # 1MB
                 if not chunk:
                     break
                 out.write(chunk)
+        db.commit()
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
     finally:
         await file.close()
 
-    background_tasks.add_task(
-        stage_audio,
-        task_id=task_id,
-        local_path=str(local_path),
-        ext=ext,
-    )
+    # background_tasks.add_task(
+    #     stage_audio,
+    #     task_id=task_id,
+    #     local_path=str(local_path),
+    #     ext=ext,
+    # )
 
     return task
 
 
 @router.get("/status/{task_id}")
-async def get_status(task_id: str, db=Depends(get_db)):
+async def get_status(task_id: int, db=Depends(get_db)):
     repo = TaskRepository(db)
     task = repo.get(task_id)
     if not task:
