@@ -42,4 +42,5 @@ services:
 volumes:
   web_node_modules:
   db_data:
+    name: db_data
 

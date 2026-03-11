@@ -3,10 +3,11 @@ from datetime import datetime
 
 # TODO: TaskState.videos_segmented
 ALLOWED_TRANSITIONS = {
-    TaskState.queued: {TaskState.running, TaskState.failed},
+    TaskState.started: {TaskState.running, TaskState.failed},
     TaskState.staging: {TaskState.ready, TaskState.failed},
     TaskState.ready: {TaskState.running, TaskState.failed},
     TaskState.running: {TaskState.done, TaskState.failed},
+    TaskState.videos_segmented: {TaskState.done, TaskState.failed},
     TaskState.done: set(),
     TaskState.failed: set(),
 }

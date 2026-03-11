@@ -6,6 +6,7 @@ from app.db import get_db
 from app.repositories.task_repository import TaskRepository
 from app.core.config import get_directories
 from app.services.slurm import stage_audio, run_slurm_job
+from app.models import TaskState
 
 
 router = APIRouter(tags=["tasks"])
@@ -15,8 +16,6 @@ router = APIRouter(tags=["tasks"])
 async def get_tasks(db=Depends(get_db)):
     repo = TaskRepository(db)
     return repo.list()
-
-# TODO: don't create id manually
 
 
 @router.post("/upload-audio")
@@ -50,12 +49,12 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
     finally:
         await file.close()
 
-    # background_tasks.add_task(
-    #     stage_audio,
-    #     task_id=task_id,
-    #     local_path=str(local_path),
-    #     ext=ext,
-    # )
+    background_tasks.add_task(
+        stage_audio,
+        task_id=task_id,
+        local_path=str(local_path),
+        ext=ext,
+    )
 
     return task
 
@@ -73,6 +72,13 @@ async def get_status(task_id: int, db=Depends(get_db)):
 async def run_task(task_id: str, background_tasks: BackgroundTasks, db=Depends(get_db)):
     repo = TaskRepository(db)
     task = repo.get(task_id)
+    repo.update_state(
+        task_id,
+        state=TaskState.running,
+        message="Submitting Slurm job",
+        progress=0,
+    )
+    db.commit()
 
     if not task:
         raise HTTPException(status_code=404, detail="Not found")

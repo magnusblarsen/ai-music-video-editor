@@ -7,13 +7,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { JobStatus } from "@/types/editor";
 
 type UploadFileProps = {
-  onUploadedAction: (id: string) => void;
   file: File | null;
   setFileAction: (file: File | null) => void;
   jobStatus: JobStatus | null;
 }
 
-export default function UploadFile({ onUploadedAction, file, setFileAction, jobStatus }: UploadFileProps) {
+export default function UploadFile({ file, setFileAction, jobStatus }: UploadFileProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
 
@@ -43,7 +42,6 @@ export default function UploadFile({ onUploadedAction, file, setFileAction, jobS
       toast.info("Starting upload...");
     },
     onSuccess: (data) => {
-      onUploadedAction(data.task_id);
       queryClient.invalidateQueries({
         queryKey: ["status", data.task_id],
       })

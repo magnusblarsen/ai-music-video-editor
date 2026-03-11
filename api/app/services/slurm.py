@@ -7,7 +7,6 @@ from app.repositories.task_repository import TaskRepository
 from app.models import TaskState
 
 
-# TODO: do this
 async def run_slurm_job(task_id: str) -> None:
     directories = get_directories()
     settings = get_hpc_config()
@@ -19,13 +18,6 @@ async def run_slurm_job(task_id: str) -> None:
         async with HpcClient(settings) as client:
             remote_dir = f"{directories.hpc_tasks_base}/{task_id}"
             remote_job_script = f"{remote_dir}/job.sbatch"
-
-            repo.update_state(
-                task_id,
-                state=TaskState.running,
-                message="Submitting Slurm job",
-                progress=0,
-            )
 
             files_in_dir = await client.run(f"ls -1 {remote_dir}")
 
@@ -56,6 +48,7 @@ async def run_slurm_job(task_id: str) -> None:
                 message=f"Job submitted (ID: {job_id})",
                 progress=50,
             )
+            db.commit()
 
     except Exception as e:
         try:
@@ -96,6 +89,7 @@ async def stage_audio(task_id: str, local_path: str, ext: str) -> None:
                 message="Uploading audio to HPC",
                 progress=20,
             )
+            db.commit()
 
             await client.mkdir(remote_dir)
             await client.sftp_put(local_path, remote_audio_path)
@@ -106,6 +100,7 @@ async def stage_audio(task_id: str, local_path: str, ext: str) -> None:
                 message="Uploaded Audio",
                 progress=100
             )
+            db.commit()
 
     except Exception as e:
         repo.update_state(
@@ -115,6 +110,7 @@ async def stage_audio(task_id: str, local_path: str, ext: str) -> None:
             progress=100,
             error=str(e)
         )
+        db.commit()
     finally:
         db.close()
 

@@ -8,10 +8,11 @@ from app.db import Base
 
 
 class TaskState(str, Enum):
-    queued = "queued"
+    started = "started"
     staging = "staging"
     ready = "ready"
     running = "running"
+    videos_segmented = "videos_segmented"
     done = "done"
     failed = "failed"
 
@@ -23,7 +24,7 @@ class TaskRecord(Base):
 
     state: Mapped[TaskState] = mapped_column(
         SqlEnum(TaskState, name="task_state"),
-        default=TaskState.queued,
+        default=TaskState.started,
         nullable=False,
     )
     progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { JobState, JobStatus } from "@/types/editor";
 
 type Props = {
-  taskId: string | null;
+  taskId: number | null;
   jobStatus: JobStatus | null;
 }
 
@@ -29,7 +29,6 @@ export default function GenerateVideo({ taskId, jobStatus }: Props) {
       toast.error(`Upload failed: ${error.message}`);
     }
   })
-  console.log("state", jobStatus?.state)
 
   return (
     <Box className="flex flex-col items-start border-2 p-4 gap-2 rounded border-gray-300">

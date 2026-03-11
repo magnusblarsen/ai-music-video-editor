@@ -3,7 +3,7 @@
 import { Typography, Box, FormControl, InputLabel, Select, MenuItem } from "@mui/material";
 import VideoPlayer from "./video-player";
 import { useState, useEffect } from "react";
-import { TestData, JobStatus } from "@/types";
+import { TestData, JobStatus, Task } from "@/types";
 import Timeline from "./timeline/timeline";
 import UploadFile from "./upload-file";
 import GenerateVideo from "./generate-video";
@@ -30,21 +30,20 @@ const defaultTracks: Track[] = [
 
 export default function HomeClient({ initialTaskId }: HomeClientProps) {
   const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [taskId, setTaskId] = useState<string | null>(initialTaskId || null);
   const [tracks, setTracks] = useState<Track[]>(defaultTracks);
-  const [chosenTask, setChosenTask] = useState<any>(null);
+  const [chosenTask, setChosenTask] = useState<Task | null>(null);
 
-  const { data: tasks } = useGetJson(["tasks"], "/api/tasks");
+  const { data: tasks } = useGetJson<Task[]>(["tasks"], "/api/tasks");
 
-  async function fetchStatus(id: string): Promise<JobStatus> {
+  async function fetchStatus(id: number): Promise<JobStatus> {
     const res = await fetch(`/api/status/${id}`, { cache: "no-store" });
     if (!res.ok) throw new Error(`Status fetch failed: ${res.status}`);
     return (await res.json()) as JobStatus;
   }
   const statusQuery = useQuery({
-    queryKey: ["status", taskId],
-    queryFn: () => fetchStatus(taskId!),
-    enabled: !!taskId,
+    queryKey: ["status", chosenTask?.id],
+    queryFn: () => fetchStatus(chosenTask!.id),
+    enabled: !!chosenTask,
     refetchInterval: (query) => {
       if (query.state.status === "error") return false;
 
@@ -52,7 +51,7 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
 
       if (!status) return 5000;
 
-      return ["staging", "done", "failed"].includes(status) ? false : 5000;
+      return ["done", "failed"].includes(status) ? false : 5000;
     },
   })
 
@@ -61,9 +60,8 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
 
   const media = useMediaController()
 
-  // NOTE: hardcoded audio file
-  // TODO: remove
-  const audioUrl = taskId ? AUDIO_SRC : null;
+  // TODO: remove hardcoded
+  const audioUrl = AUDIO_SRC
 
   useEffect(() => {
     if (media.audioSrc !== audioUrl) {
@@ -80,23 +78,27 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
           </Typography>
           <FormControl fullWidth>
             <InputLabel>Project</InputLabel>
-            <Select>
+            <Select
+              value={chosenTask?.id || ""}
+              label="Project"
+              onChange={(e) => {
+                const task = tasks?.find((t) => t.id === e.target.value) ?? null;
+                setChosenTask(task);
+              }}
+            >
               {tasks?.map((task) => (
                 <MenuItem key={task.id} value={task.id} onClick={() => setChosenTask(task)}>
-                  {task.name || task.id}
+                  {task.id}
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
           <UploadFile
-            onUploadedAction={(id: string) => {
-              setTaskId(id);
-            }}
             file={audioFile}
             setFileAction={setAudioFile}
             jobStatus={jobStatus}
           />
-          <GenerateVideo taskId={taskId} jobStatus={jobStatus} />
+          <GenerateVideo taskId={chosenTask?.id || null} jobStatus={jobStatus} />
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, mt: 2 }}>
           <VideoPlayer
