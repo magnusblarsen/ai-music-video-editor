@@ -15,7 +15,7 @@ class Settings:
 @dataclass(frozen=True)
 class Directories:
     media: Path
-    hpc_tasks_base: Path
+    hpc_base: Path
 
 
 def get_hpc_config() -> Settings:
@@ -42,11 +42,11 @@ def get_directories() -> Directories:
 
     load_dotenv()
 
-    hpc_remote_base = os.getenv("HPC_TASKS_BASE")
+    hpc_remote_base = os.getenv("HPC_BASE")
     if not hpc_remote_base:
         raise ValueError("HPC_TASKS_BASE environment variable is not set")
 
     return Directories(
         media=media_dir,
-        hpc_tasks_base=Path(hpc_remote_base),
+        hpc_base=Path(hpc_remote_base),
     )

@@ -20,9 +20,10 @@ type TimelineProps = {
   isPlaying?: boolean;
   durationSec?: number;
   tracks: Track[];
+  audioSrc: string | null;
 }
 
-export default function Timeline({ time, seekToAction, playAction, pauseAction, isPlaying, durationSec = 120, tracks }: TimelineProps) {
+export default function Timeline({ time, seekToAction, playAction, pauseAction, isPlaying, durationSec = 120, tracks, audioSrc }: TimelineProps) {
   const rulerHeight = 30
   const trackHeight = 50
   const playHeadTopHeight = 13 // rulerHeight / 2
@@ -204,10 +205,29 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
             sx={{
               position: "relative",
               width: totalWidth,
-              height: tracks.length * trackHeight,
+              height: (tracks.length + 1) * trackHeight,
               bgcolor: "background.default",
             }}
           >
+            {audioSrc && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  height: trackHeight,
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                }}
+              >
+                <WaveformTrack
+                  src={audioSrc}
+                  height={trackHeight}
+                  width={totalWidth}
+                />
+              </Box>
+            )}
             {tracks.map((t, i) => (
               <Box
                 key={t.id}
@@ -215,22 +235,13 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
                   position: "absolute",
                   left: 0,
                   right: 0,
-                  top: i * trackHeight,
+                  top: (i + 1) * trackHeight,
                   height: trackHeight,
                   borderBottom: "1px solid",
                   borderColor: "divider",
                 }}
               >
-                {t.type === "audio" && (
-                  <WaveformTrack
-                    src={t.clips[0].src}
-                    height={trackHeight}
-                    width={totalWidth}
-                  />
-                )}
-                {t.type === "video" && (
-                  <VideoTrack clips={t.clips} height={trackHeight} width={totalWidth} pxPerSecond={pxPerSecond} />
-                )}
+                <VideoTrack clips={t.clips} height={trackHeight} width={totalWidth} pxPerSecond={pxPerSecond} />
               </Box>
             ))}
 

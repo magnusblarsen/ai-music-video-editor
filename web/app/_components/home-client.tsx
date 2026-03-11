@@ -16,21 +16,12 @@ type HomeClientProps = {
   initialTaskId?: string;
 }
 
-const AUDIO_SRC = "/api/media/never.mp3"; //NOTE: hardcoded
 const VIDEO_SRC = "/api/media/never.mp4";
-
-const audioClip: AudioClip = { src: AUDIO_SRC }
-const videoClip: VideoClip = { src: VIDEO_SRC, startTime: 0, duration: 60 }
-
-const defaultTracks: Track[] = [
-  { id: "v1", type: "video", clips: [videoClip] },
-  { id: "a1", type: "audio", clips: [audioClip] },
-]
 
 
 export default function HomeClient({ initialTaskId }: HomeClientProps) {
   const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [tracks, setTracks] = useState<Track[]>(defaultTracks);
+  const [editedTracks, setEditedTracks] = useState<Track[] | null>(null);
   const [chosenTask, setChosenTask] = useState<Task | null>(null);
 
   const { data: tasks } = useGetJson<Task[]>(["tasks"], "/api/tasks");
@@ -57,17 +48,24 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
 
   const jobStatus = statusQuery.data as JobStatus | null;
 
+  const { data: fetchedTracks, isLoading: tracksLoading, error: tracksError } = useGetJson<Track[]>(
+    ["tracks", chosenTask?.id],
+    `/api/tasks/${chosenTask?.id}/tracks`,
+    undefined,
+    {
+      enabled: !!chosenTask?.id
+    }
+  );
 
-  const media = useMediaController()
+  const tracks = editedTracks ?? fetchedTracks ?? []
 
-  // TODO: remove hardcoded
-  const audioUrl = AUDIO_SRC
+  const { setAudioSrc, videoRef, audioRef, time, seekTo, play, pause, duration, isPlaying, audioSrc } = useMediaController()
 
   useEffect(() => {
-    if (media.audioSrc !== audioUrl) {
-      media.setAudioSrc(audioUrl);
+    if (chosenTask?.id) {
+      setAudioSrc(`/api/media/${chosenTask.id}.mp3`)
     }
-  }, [audioUrl])
+  }, [chosenTask?.id, setAudioSrc])
 
   return (
     <Box sx={{ height: '100vh', display: "flex", flexDirection: "column" }}>
@@ -84,10 +82,11 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
               onChange={(e) => {
                 const task = tasks?.find((t) => t.id === e.target.value) ?? null;
                 setChosenTask(task);
+                setEditedTracks(null)
               }}
             >
               {tasks?.map((task) => (
-                <MenuItem key={task.id} value={task.id} onClick={() => setChosenTask(task)}>
+                <MenuItem key={task.id} value={task.id}>
                   {task.id}
                 </MenuItem>
               ))}
@@ -103,20 +102,21 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, mt: 2 }}>
           <VideoPlayer
             videoSrc={VIDEO_SRC}
-            videoRef={media.videoRef}
-            audioSrc={media.audioSrc || undefined}
-            audioRef={media.audioRef}
+            videoRef={videoRef}
+            audioSrc={audioSrc || undefined}
+            audioRef={audioRef}
           />
         </Box>
       </Box>
       <Timeline
         tracks={tracks}
-        time={media.time}
-        seekToAction={media.seekTo}
-        playAction={media.play}
-        pauseAction={media.pause}
-        durationSec={media.duration || undefined}
-        isPlaying={media.isPlaying} />
+        time={time}
+        seekToAction={seekTo}
+        playAction={play}
+        pauseAction={pause}
+        durationSec={duration || undefined}
+        audioSrc={audioSrc}
+        isPlaying={isPlaying} />
     </Box>
   )
 

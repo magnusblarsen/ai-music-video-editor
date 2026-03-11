@@ -1,8 +1,9 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, Enum as SqlEnum, Integer, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import DateTime, Enum as SqlEnum, Integer, Text, func, ForeignKey, Float
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 
 from app.db import Base
 
@@ -42,3 +43,45 @@ class TaskRecord(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+    tracks: Mapped[list["Track"]] = relationship(
+        back_populates="task",
+        cascade="all, delete-orphan",
+    )
+
+
+class Track(Base):
+    __tablename__ = "tracks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), nullable=False)
+
+    task: Mapped["TaskRecord"] = relationship(back_populates="tracks")
+
+    clips: Mapped[list["Clip"]] = relationship(
+        back_populates="track",
+        cascade="all, delete-orphan",
+        order_by="Clip.start_seconds",
+    )
+
+
+class Clip(Base):
+    __tablename__ = "clips"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    track_id: Mapped[int] = mapped_column(ForeignKey("tracks.id"), nullable=False)
+
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+
+    clip_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_seconds: Mapped[float] = mapped_column(Float, nullable=False)
+    end_seconds: Mapped[float] = mapped_column(Float, nullable=False)
+    duration_seconds: Mapped[float] = mapped_column(Float, nullable=False)
+
+    script_description: Mapped[str] = mapped_column(Text, nullable=False)
+    aesthetics: Mapped[str] = mapped_column(Text, nullable=False)
+    camera_movement: Mapped[str] = mapped_column(Text, nullable=False)
+
+    track: Mapped["Track"] = relationship(back_populates="clips")

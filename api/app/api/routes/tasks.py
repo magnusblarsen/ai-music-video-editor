@@ -5,8 +5,13 @@ from fastapi import UploadFile, File, HTTPException, APIRouter, BackgroundTasks,
 from app.db import get_db
 from app.repositories.task_repository import TaskRepository
 from app.core.config import get_directories
-from app.services.slurm import stage_audio, run_slurm_job
+from app.services.slurm import stage_audio, run_and_poll_task
 from app.models import TaskState
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+from app.schemas.track import TrackRead
+
+from app.models import Track
 
 
 router = APIRouter(tags=["tasks"])
@@ -72,6 +77,10 @@ async def get_status(task_id: int, db=Depends(get_db)):
 async def run_task(task_id: str, background_tasks: BackgroundTasks, db=Depends(get_db)):
     repo = TaskRepository(db)
     task = repo.get(task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Not found")
+
     repo.update_state(
         task_id,
         state=TaskState.running,
@@ -80,9 +89,24 @@ async def run_task(task_id: str, background_tasks: BackgroundTasks, db=Depends(g
     )
     db.commit()
 
+    background_tasks.add_task(run_and_poll_task, task_id=task_id)
+
+    return {"ok": True, "task_id": task_id}
+
+
+@router.get("/tasks/{task_id}/tracks", response_model=list[TrackRead])
+async def get_tracks(task_id: int, db=Depends(get_db)):
+    repo = TaskRepository(db)
+    task = repo.get(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Not found")
 
-    background_tasks.add_task(run_slurm_job, task_id=task_id)
+    stmt = (
+        select(Track)
+        .where(Track.task_id == task_id)
+        .options(selectinload(Track.clips))
+    )
 
-    return {"ok": True, "task_id": task_id}
+    tracks = db.scalars(stmt).all()
+
+    return tracks
