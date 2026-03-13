@@ -5,12 +5,15 @@ from app.db import SessionLocal
 from app.repositories.task_repository import TaskRepository
 from app.models import Clip, Track
 from pathlib import Path
+import logging
 
 from app.models import TaskState
 
 import asyncio
 import json
 import shlex
+
+logger = logging.getLogger(__name__)
 
 
 async def poll_video_segments(
@@ -112,8 +115,10 @@ async def _wait_for_remote_file(
             exists = (await client.run(f"test -f {quoted_path} && echo 1 || echo 0")).strip()
 
             if exists == "1":
+                logger.info(f"Remote file found: {remote_result_file} (elapsed: {elapsed:.1f}s)")
                 return await client.run(f"cat {quoted_path}")
 
+            logger.info(f"Remote file not found yet: {remote_result_file} (elapsed: {elapsed:.1f}s)")
             await asyncio.sleep(poll_interval_seconds)
             elapsed += poll_interval_seconds
 

@@ -4,6 +4,7 @@ import { Button, Box } from "@mui/material"
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { JobState, JobStatus } from "@/types/editor";
+import ControlsContainer from "@/components/ControlsContainer";
 
 type Props = {
   taskId: number | null;
@@ -31,9 +32,9 @@ export default function GenerateVideo({ taskId, jobStatus }: Props) {
   })
 
   return (
-    <Box className="flex flex-col items-start border-2 p-4 gap-2 rounded border-gray-300">
+    <ControlsContainer>
       <Button disabled={jobStatus?.state != JobState.READY} variant="contained" onClick={() => generateVideoMutation.mutate()}>Generate Video</Button>
-    </Box >
+    </ControlsContainer>
   )
 }
 

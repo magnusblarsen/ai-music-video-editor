@@ -2,7 +2,7 @@
 import { Box, Button, Paper, Typography } from "@mui/material";
 import React, { useRef, useState, useMemo, useEffect } from "react";
 import Ruler from "./ruler";
-import { formatTime } from "@/utils/formatTime";
+import { formatTimePrecise } from "@/utils/formatTime";
 import { Track } from "@/types/editor";
 import WaveformTrack from "./WaveformTrack";
 import VideoTrack from "./VideoTrack";
@@ -175,9 +175,9 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
         </Box>
 
         <Box className="flex p-0 m-0 items-end">
-          <Typography>{formatTime(time)}</Typography>
+          <Typography>{formatTimePrecise(time)}</Typography>
           <Typography color="text.secondary" className="mx-1">/</Typography>
-          <Typography color="text.secondary">{formatTime(durationSec)}</Typography>
+          <Typography color="text.secondary">{formatTimePrecise(durationSec)}</Typography>
         </Box>
       </Box>
       <Paper variant="outlined" className="overflow-hidden">

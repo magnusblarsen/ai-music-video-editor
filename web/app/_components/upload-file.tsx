@@ -1,10 +1,21 @@
 "use client";
 
-import { Box, Button, Typography } from "@mui/material";
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from "@mui/material";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { JobStatus } from "@/types/editor";
+import { JobState, JobStatus } from "@/types/editor";
+
+const stateToLabel: Record<JobState, string> = {
+  "started": "The task has started",
+  "staging": "Uploading audio file",
+  "ready": "Ready to start generating videos",
+  "running": "Making video scripts",
+  "videos_segmented": "Video scripts have been generated. Generating videos now :)",
+  "done": "Done generating videos",
+  "failed": "Failed"
+}
+
 
 type UploadFileProps = {
   file: File | null;
@@ -15,6 +26,7 @@ type UploadFileProps = {
 export default function UploadFile({ file, setFileAction, jobStatus }: UploadFileProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
 
   const handleSelectClick = () => {
     inputRef.current?.click();
@@ -64,23 +76,35 @@ export default function UploadFile({ file, setFileAction, jobStatus }: UploadFil
         hidden
         onChange={(e) => setFileAction(e.target.files?.[0] ?? null)}
       />
-      <Button variant="contained" onClick={handleSelectClick}>
-        {file ? "Change audio file" : "Select audio file"}
+      <Button variant="contained" onClick={() => setOpen(true)}>
+        Create new project
       </Button>
+      <Dialog open={open} onClose={() => setOpen(false)}>
+        <DialogTitle>Upload audio file to make new project</DialogTitle>
+        <DialogContent>
 
-      {file && (
-        <Typography variant="body2">
-          Selected: {file.name}
-        </Typography>
-      )}
+          {file && (
+            <Typography variant="body2">
+              Selected: {file.name}
+            </Typography>
+          )}
 
-      <Button variant="outlined" onClick={() => file && uploadMutation.mutate(file)} disabled={!file || uploadMutation.isPending}>
-        {uploadMutation.isPending ? "Uploading..." : "Upload"}
-      </Button>
+          <DialogActions>
+            <Button variant="contained" onClick={handleSelectClick}>
+              {file ? "Change audio file" : "Select audio file"}
+            </Button>
 
+            <Button variant="outlined" onClick={() => file && uploadMutation.mutate(file)} disabled={!file || uploadMutation.isPending}>
+              {uploadMutation.isPending ? "Uploading..." : "Upload"}
+            </Button>
+          </DialogActions>
+
+        </DialogContent>
+
+      </Dialog>
       {jobStatus && (
         <Typography variant="body1" color={jobStatus.state === "failed" ? "error" : "textPrimary"} gutterBottom>
-          Status: {jobStatus.state}
+          Status: {stateToLabel[jobStatus.state]}
         </Typography>
       )}
     </Box>

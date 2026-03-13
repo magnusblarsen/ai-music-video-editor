@@ -80,6 +80,8 @@ async def run_task(task_id: str, background_tasks: BackgroundTasks, db=Depends(g
 
     if not task:
         raise HTTPException(status_code=404, detail="Not found")
+    if task.state != TaskState.ready:
+        raise HTTPException(status_code=400, detail=f"Task not ready to run (current state: {task.state})")
 
     repo.update_state(
         task_id,
@@ -98,6 +100,19 @@ async def run_task(task_id: str, background_tasks: BackgroundTasks, db=Depends(g
 async def start_polling(task_id: int, background_tasks: BackgroundTasks, db=Depends(get_db)):
     repo = TaskRepository(db)
     task = repo.get(task_id)
+
+    if task.state not in {TaskState.running, TaskState.failed}:
+        raise HTTPException(status_code=400, detail=f"Task not running (current state: {task.state})")
+
+    stmt = (
+        select(Track)
+        .where(Track.task_id == task_id)
+        .options(selectinload(Track.clips))
+    )
+
+    tracks = db.scalars(stmt).all()
+    if tracks:
+        raise HTTPException(status_code=400, detail="Tracks already exist for this task")
     if not task:
         raise HTTPException(status_code=404, detail="Not found")
 

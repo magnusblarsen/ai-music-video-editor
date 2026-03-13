@@ -7,10 +7,13 @@ import { JobStatus, Task } from "@/types";
 import Timeline from "./timeline/timeline";
 import UploadFile from "./upload-file";
 import GenerateVideo from "./generate-video";
-import { Track } from "@/types/editor";
+import { JobState, Track } from "@/types/editor";
 import { useMediaController } from "./hooks/useMediaController";
 import { useQuery } from "@tanstack/react-query";
 import { useGetJson } from "@/hooks/useGetJson";
+import { useMutation } from "@tanstack/react-query";
+import axios from "axios";
+import { toast } from "sonner";
 
 type HomeClientProps = {
   initialTaskId?: string;
@@ -27,7 +30,8 @@ const VIDEO_SRC = "/api/media/never.mp4";
 //   DONE = "done",
 //   FAILED = "failed"
 // }
-//
+
+
 
 export default function HomeClient({ initialTaskId }: HomeClientProps) {
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -69,21 +73,15 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
     }
   );
 
-  function startPolling() {
-    fetch(`/api/tasks/${chosenTask?.id}/start-polling`, {
-      method: "POST",
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to start polling: ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        console.log("Polling started:", data);
-      })
-      .catch((err) => {
-        console.error("Error starting polling:", err);
-      });
-  }
+  const startPollingMutation = useMutation({
+    mutationFn: () => {
+      return axios.post(`/api/tasks/${chosenTask?.id}/start-polling`);
+    },
+    onError: (err) => {
+      toast.error(`Failed to start polling: ${err.message}`);
+    }
+  })
+
 
   const tracks = editedTracks ?? fetchedTracks ?? []
 
@@ -100,11 +98,8 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
       <Box sx={{ height: '60%', display: "flex", flexDirection: "row", minHeight: 0 }} >
         <Box className="flex-1 min-w-0 min-h-0 p-2">
           <Typography variant="h4" gutterBottom>
-            AI Music Video Editor!
+            MuseGen
           </Typography>
-          <Button variant="contained" color="primary" onClick={() => startPolling()}>
-            start polling
-          </Button>
           <FormControl fullWidth>
             <InputLabel>Project</InputLabel>
             <Select
@@ -129,6 +124,14 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
             jobStatus={jobStatus}
           />
           <GenerateVideo taskId={chosenTask?.id || null} jobStatus={jobStatus} />
+          <Box className="flex flex-col items-start border-2 p-4 gap-2 rounded border-gray-300">
+            <Typography variant="h6" gutterBottom>
+              Debug controls
+            </Typography>
+            <Button variant="contained" color="primary" onClick={() => startPollingMutation.mutate()} disabled={startPollingMutation.isPending || !chosenTask}>
+              start polling
+            </Button>
+          </Box>
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, mt: 2 }}>
           <VideoPlayer
@@ -147,7 +150,8 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
         pauseAction={pause}
         durationSec={duration || undefined}
         audioSrc={audioSrc}
-        isPlaying={isPlaying} />
+        isPlaying={isPlaying}
+      />
     </Box>
   )
 

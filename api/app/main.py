@@ -1,7 +1,14 @@
+from app.api.router import api_router
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+import logging
 
-from app.api.router import api_router
+logging.basicConfig(level=logging.INFO)
+
+logging.getLogger("asyncssh").setLevel(logging.WARNING)  # or CRITICAL
+logging.getLogger("asyncio").setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Video Generation API")
 app.include_router(api_router)
