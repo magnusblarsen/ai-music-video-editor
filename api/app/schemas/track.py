@@ -6,7 +6,13 @@ class ClipRead(BaseModel):
 
     id: int
     url: str
-    start_offset_ms: int
+    clip_index: int
+    start_seconds: float
+    end_seconds: float
+    duration_seconds: float
+    script_description: str
+    aesthetics: str
+    camera_movement: str
 
 
 class TrackRead(BaseModel):

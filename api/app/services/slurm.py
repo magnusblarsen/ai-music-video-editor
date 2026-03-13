@@ -4,6 +4,7 @@ from app.services.hpc_client import HpcClient
 from app.db import SessionLocal
 from app.repositories.task_repository import TaskRepository
 from app.models import Clip, Track
+from pathlib import Path
 
 from app.models import TaskState
 
@@ -14,16 +15,17 @@ import shlex
 
 async def poll_video_segments(
     task_id: int,
-    remote_result_file: str,
     poll_interval_seconds: float = 30.0,
     timeout_seconds: float = 60 * 30,
 ) -> None:
     settings = get_hpc_config()
+    directories = get_directories()
+    result_file = directories.hpc_base / "Music-Visualization-Generation-Pipeline" / "outputs" / f"test_run_{str(task_id)}" / "segments.json"
 
     try:
         file_contents = await _wait_for_remote_file(
             settings=settings,
-            remote_result_file=remote_result_file,
+            remote_result_file=result_file,
             poll_interval_seconds=poll_interval_seconds,
             timeout_seconds=timeout_seconds,
         )
@@ -97,12 +99,13 @@ async def poll_video_segments(
 
 async def _wait_for_remote_file(
     settings,
-    remote_result_file: str,
+    remote_result_file: Path,
     poll_interval_seconds: float,
     timeout_seconds: float,
 ) -> str:
     elapsed = 0.0
-    quoted_path = shlex.quote(remote_result_file)
+
+    quoted_path = shlex.quote(str(remote_result_file))
 
     async with HpcClient(settings) as client:
         while elapsed < timeout_seconds:
@@ -139,7 +142,6 @@ def _set_task_state(
 
 
 async def run_and_poll_task(task_id: int) -> None:
-    directories = get_directories()
 
     db = SessionLocal()
     try:
@@ -156,11 +158,8 @@ async def run_and_poll_task(task_id: int) -> None:
 
     await run_slurm_job(task_id=task_id)
 
-    result_file = directories.hpc_base / "Music-Visualization-Generation-Pipeline" / "outputs" / f"test_run_{str(task_id)}" / "segments.json"
-
     await poll_video_segments(
         task_id=task_id,
-        result_file=result_file,
     )
 
 

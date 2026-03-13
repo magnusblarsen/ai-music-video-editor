@@ -5,7 +5,7 @@ from fastapi import UploadFile, File, HTTPException, APIRouter, BackgroundTasks,
 from app.db import get_db
 from app.repositories.task_repository import TaskRepository
 from app.core.config import get_directories
-from app.services.slurm import stage_audio, run_and_poll_task
+from app.services.slurm import stage_audio, run_and_poll_task, poll_video_segments
 from app.models import TaskState
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -90,6 +90,18 @@ async def run_task(task_id: str, background_tasks: BackgroundTasks, db=Depends(g
     db.commit()
 
     background_tasks.add_task(run_and_poll_task, task_id=task_id)
+
+    return {"ok": True, "task_id": task_id}
+
+
+@router.post("/tasks/{task_id}/start-polling")
+async def start_polling(task_id: int, background_tasks: BackgroundTasks, db=Depends(get_db)):
+    repo = TaskRepository(db)
+    task = repo.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    background_tasks.add_task(poll_video_segments, task_id=task_id)
 
     return {"ok": True, "task_id": task_id}
 

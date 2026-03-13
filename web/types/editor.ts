@@ -13,23 +13,21 @@ export type JobStatus = {
   error?: string | null;
 }
 
-export type TrackType = "video" | "audio";
-
-export type BaseClip = {
-  src: string;
+export type Clip = {
+  id: number;
+  url: string;
+  start_seconds: number;
+  end_seconds: number;
+  duration_seconds: number;
+  script_description: string;
+  aesthetics: string;
+  camera_movement: string;
 }
-
-export type VideoClip = BaseClip & {
-  duration: number;
-  startTime: number;
-}
-
-export type AudioClip = BaseClip;
 
 export type Track = {
   id: string;
-  type: TrackType;
-  clips: BaseClip[];
+  task_id: number;
+  clips: Clip[];
 }
 
 export type Task = {

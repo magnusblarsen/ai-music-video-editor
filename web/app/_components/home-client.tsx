@@ -1,13 +1,13 @@
 "use client"
 
-import { Typography, Box, FormControl, InputLabel, Select, MenuItem } from "@mui/material";
+import { Typography, Box, FormControl, InputLabel, Select, MenuItem, Button } from "@mui/material";
 import VideoPlayer from "./video-player";
 import { useState, useEffect } from "react";
-import { TestData, JobStatus, Task } from "@/types";
+import { JobStatus, Task } from "@/types";
 import Timeline from "./timeline/timeline";
 import UploadFile from "./upload-file";
 import GenerateVideo from "./generate-video";
-import { AudioClip, VideoClip, Track } from "@/types/editor";
+import { Track } from "@/types/editor";
 import { useMediaController } from "./hooks/useMediaController";
 import { useQuery } from "@tanstack/react-query";
 import { useGetJson } from "@/hooks/useGetJson";
@@ -18,6 +18,16 @@ type HomeClientProps = {
 
 const VIDEO_SRC = "/api/media/never.mp4";
 
+// export enum JobState {
+//   STARTED = "started",
+//   STAGING = "staging",
+//   READY = "ready",
+//   RUNNING = "running",
+//   VIDEOS_SEGMENTED = "videos_segmented",
+//   DONE = "done",
+//   FAILED = "failed"
+// }
+//
 
 export default function HomeClient({ initialTaskId }: HomeClientProps) {
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -31,6 +41,7 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
     if (!res.ok) throw new Error(`Status fetch failed: ${res.status}`);
     return (await res.json()) as JobStatus;
   }
+
   const statusQuery = useQuery({
     queryKey: ["status", chosenTask?.id],
     queryFn: () => fetchStatus(chosenTask!.id),
@@ -46,6 +57,7 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
     },
   })
 
+
   const jobStatus = statusQuery.data as JobStatus | null;
 
   const { data: fetchedTracks, isLoading: tracksLoading, error: tracksError } = useGetJson<Track[]>(
@@ -56,6 +68,22 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
       enabled: !!chosenTask?.id
     }
   );
+
+  function startPolling() {
+    fetch(`/api/tasks/${chosenTask?.id}/start-polling`, {
+      method: "POST",
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to start polling: ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        console.log("Polling started:", data);
+      })
+      .catch((err) => {
+        console.error("Error starting polling:", err);
+      });
+  }
 
   const tracks = editedTracks ?? fetchedTracks ?? []
 
@@ -74,6 +102,9 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
           <Typography variant="h4" gutterBottom>
             AI Music Video Editor!
           </Typography>
+          <Button variant="contained" color="primary" onClick={() => startPolling()}>
+            start polling
+          </Button>
           <FormControl fullWidth>
             <InputLabel>Project</InputLabel>
             <Select
