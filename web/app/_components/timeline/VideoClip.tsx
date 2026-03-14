@@ -1,6 +1,6 @@
 import { Clip } from "@/types";
-import { Box, Button, Dialog, DialogContent, DialogTitle, TextField, Typography } from "@mui/material";
-import { useState } from "react";
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from "@mui/material";
+import { useEffect, useMemo, useState } from "react";
 
 
 type Props = {
@@ -17,21 +17,34 @@ type ScenePayload = {
 
 export default function VideoClip({ pxPerSecond, clip, index }: Props) {
   const [open, setOpen] = useState(false);
-  const [changed, setChanged] = useState(false);
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
 
-  const [sceneData, setSceneData] = useState<ScenePayload>({
+
+  const initialSceneData: ScenePayload = useMemo(() => ({
     aesthetics: clip.aesthetics ?? "",
     cameraMovement: clip.camera_movement ?? "",
     scriptDescription: clip.script_description ?? "",
-  })
+  }), [clip.aesthetics, clip.camera_movement, clip.script_description]);
+
+  const [sceneData, setSceneData] = useState<ScenePayload>(initialSceneData)
+
+  useEffect(() => {
+    setSceneData(initialSceneData);
+  }, [initialSceneData])
+
+  const changed =
+    sceneData.aesthetics !== initialSceneData.aesthetics ||
+    sceneData.cameraMovement !== initialSceneData.cameraMovement ||
+    sceneData.scriptDescription !== initialSceneData.scriptDescription;
+
 
   const handleChange = (field: keyof ScenePayload) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setChanged(true);
     setSceneData((prev) => ({
       ...prev,
       [field]: e.target.value
     }));
   };
+
 
   const handleClickOpen = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -40,9 +53,22 @@ export default function VideoClip({ pxPerSecond, clip, index }: Props) {
 
   const handleClose = (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (changed) {
+      setConfirmCloseOpen(true)
+      return;
+    }
     setOpen(false)
   }
 
+  const confirmClose = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setConfirmCloseOpen(false);
+    setOpen(false);
+  };
+
+  const cancelClose = () => {
+    setConfirmCloseOpen(false);
+  };
 
 
 
@@ -102,6 +128,20 @@ export default function VideoClip({ pxPerSecond, clip, index }: Props) {
           </DialogContent>
         </Box>
         <Button variant="contained" disabled={!changed} className="m-2">Generate scene</Button>
+      </Dialog>
+      <Dialog open={confirmCloseOpen} onClose={cancelClose}>
+        <DialogTitle>Discard changes?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to close? Your unsaved changes will be lost.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={cancelClose}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={confirmClose}>
+            Close anyway
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   )
