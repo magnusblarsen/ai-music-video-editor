@@ -34,6 +34,7 @@ class TaskRepository:
         progress: int | None = None,
         message: str | None = None,
         error: str | None = None,
+        job_id: str | None = None,
     ) -> TaskRecord:
         task = self.require(id)
 
@@ -45,5 +46,7 @@ class TaskRepository:
             task.message = message
         if error is not None:
             task.error = error
+        if job_id is not None:
+            task.job_id = job_id
 
         return task

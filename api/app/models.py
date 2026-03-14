@@ -49,6 +49,8 @@ class TaskRecord(Base):
         cascade="all, delete-orphan",
     )
 
+    job_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+
 
 class Track(Base):
     __tablename__ = "tracks"

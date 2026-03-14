@@ -73,9 +73,21 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
     }
   );
 
-  const startPollingMutation = useMutation({
+  const pollSegmentsMutation = useMutation({
     mutationFn: () => {
-      return axios.post(`/api/tasks/${chosenTask?.id}/start-polling`);
+      return axios.post(`/api/tasks/${chosenTask?.id}/poll-segments`);
+    },
+    onError: (err) => {
+      toast.error(`Failed to start polling: ${err.message}`);
+    }
+  })
+
+  const pollVideosMutation = useMutation({
+    mutationFn: () => {
+      return axios.post(`/api/tasks/${chosenTask?.id}/poll-videos`);
+    },
+    onSuccess: () => {
+      toast.success("Polling started successfully");
     },
     onError: (err) => {
       toast.error(`Failed to start polling: ${err.message}`);
@@ -98,7 +110,7 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
       <Box sx={{ height: '60%', display: "flex", flexDirection: "row", minHeight: 0 }} >
         <Box className="flex-1 min-w-0 min-h-0 p-2">
           <Typography variant="h4" gutterBottom>
-            MuseGen
+            Generate videos
           </Typography>
           <FormControl fullWidth>
             <InputLabel>Project</InputLabel>
@@ -128,8 +140,11 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
             <Typography variant="h6" gutterBottom>
               Debug controls
             </Typography>
-            <Button variant="contained" color="primary" onClick={() => startPollingMutation.mutate()} disabled={startPollingMutation.isPending || !chosenTask}>
+            <Button variant="contained" color="primary" onClick={() => pollSegmentsMutation.mutate()} disabled={pollSegmentsMutation.isPending || !chosenTask}>
               start polling
+            </Button>
+            <Button variant="contained" color="primary" onClick={() => pollVideosMutation.mutate()} disabled={pollVideosMutation.isPending || !chosenTask}>
+              start polling videos
             </Button>
           </Box>
         </Box>

@@ -5,7 +5,7 @@ from fastapi import UploadFile, File, HTTPException, APIRouter, BackgroundTasks,
 from app.db import get_db
 from app.repositories.task_repository import TaskRepository
 from app.core.config import get_directories
-from app.services.slurm import stage_audio, run_and_poll_task, poll_video_segments
+from app.services.slurm import stage_audio, run_and_poll_task, poll_video_segments, poll_and_store_videos
 from app.models import TaskState
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -96,7 +96,7 @@ async def run_task(task_id: str, background_tasks: BackgroundTasks, db=Depends(g
     return {"ok": True, "task_id": task_id}
 
 
-@router.post("/tasks/{task_id}/start-polling")
+@router.post("/tasks/{task_id}/poll-segments")
 async def start_polling(task_id: int, background_tasks: BackgroundTasks, db=Depends(get_db)):
     repo = TaskRepository(db)
     task = repo.get(task_id)
@@ -137,3 +137,19 @@ async def get_tracks(task_id: int, db=Depends(get_db)):
     tracks = db.scalars(stmt).all()
 
     return tracks
+
+
+# NOTE: one small problem: May poll the same videos concurrently if multiple requests.
+@router.post("/tasks/{task_id}/poll-videos")
+async def poll_videos(task_id: int, background_tasks: BackgroundTasks, db=Depends(get_db)):
+    repo = TaskRepository(db)
+    task = repo.get(task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Not found")
+    if task.state not in {TaskState.videos_segmented, TaskState.failed}:
+        raise HTTPException(status_code=400, detail=f"Task not ready to poll videos (current state: {task.state})")
+
+    background_tasks.add_task(poll_and_store_videos, task_id=task_id)
+
+    return {"ok": True, "task_id": task_id}
