@@ -75,7 +75,7 @@ class Clip(Base):
 
     track_id: Mapped[int] = mapped_column(ForeignKey("tracks.id"), nullable=False)
 
-    url: Mapped[str] = mapped_column(Text, nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=True)
 
     clip_index: Mapped[int] = mapped_column(Integer, nullable=False)
     start_seconds: Mapped[float] = mapped_column(Float, nullable=False)

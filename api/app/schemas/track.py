@@ -5,7 +5,7 @@ class ClipRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    url: str
+    url: str | None = None
     clip_index: int
     start_seconds: float
     end_seconds: float

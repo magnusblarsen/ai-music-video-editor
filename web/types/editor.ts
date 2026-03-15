@@ -15,7 +15,7 @@ export type JobStatus = {
 
 export type Clip = {
   id: number;
-  url: string;
+  url: string | null;
   start_seconds: number;
   end_seconds: number;
   duration_seconds: number;

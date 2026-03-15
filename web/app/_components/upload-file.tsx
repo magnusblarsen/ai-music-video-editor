@@ -1,10 +1,11 @@
 "use client";
 
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from "@mui/material";
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent } from "@mui/material";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { JobState, JobStatus } from "@/types/editor";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { JobState, JobStatus, Task } from "@/types/editor";
+import ControlsContainer from "@/components/ControlsContainer";
 
 const stateToLabel: Record<JobState, string> = {
   "started": "The task has started",
@@ -13,7 +14,7 @@ const stateToLabel: Record<JobState, string> = {
   "running": "Making video scripts",
   "videos_segmented": "Video scripts have been generated. Generating videos now :)",
   "done": "Done generating videos",
-  "failed": "Failed"
+  "failed": "Failed. Sadness :("
 }
 
 
@@ -21,9 +22,12 @@ type UploadFileProps = {
   file: File | null;
   setFileAction: (file: File | null) => void;
   jobStatus: JobStatus | null;
+  onProjectSelect: (event: SelectChangeEvent<number>) => void;
+  tasks: Task[] | null;
+  chosenTask: Task | null;
 }
 
-export default function UploadFile({ file, setFileAction, jobStatus }: UploadFileProps) {
+export default function UploadFile({ file, setFileAction, jobStatus, onProjectSelect, tasks, chosenTask }: UploadFileProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -68,7 +72,7 @@ export default function UploadFile({ file, setFileAction, jobStatus }: UploadFil
 
 
   return (
-    <Box className="flex flex-col items-start border-2 p-4 gap-2 rounded border-gray-300">
+    <ControlsContainer>
       <input
         ref={inputRef}
         type="file"
@@ -76,6 +80,20 @@ export default function UploadFile({ file, setFileAction, jobStatus }: UploadFil
         hidden
         onChange={(e) => setFileAction(e.target.files?.[0] ?? null)}
       />
+      <FormControl fullWidth>
+        <InputLabel>Project</InputLabel>
+        <Select
+          value={chosenTask?.id || ""}
+          label="Project"
+          onChange={onProjectSelect}
+        >
+          {tasks?.map((task) => (
+            <MenuItem key={task.id} value={task.id}>
+              {task.id}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
       <Button variant="contained" onClick={() => setOpen(true)}>
         Create new project
       </Button>
@@ -107,7 +125,7 @@ export default function UploadFile({ file, setFileAction, jobStatus }: UploadFil
           Status: {stateToLabel[jobStatus.state]}
         </Typography>
       )}
-    </Box>
+    </ControlsContainer>
 
   )
 }

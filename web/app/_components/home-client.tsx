@@ -1,13 +1,13 @@
 "use client"
 
-import { Typography, Box, FormControl, InputLabel, Select, MenuItem, Button } from "@mui/material";
+import { Typography, Box, Button, SelectChangeEvent } from "@mui/material";
 import VideoPlayer from "./video-player";
 import { useState, useEffect } from "react";
 import { JobStatus, Task } from "@/types";
 import Timeline from "./timeline/timeline";
 import UploadFile from "./upload-file";
 import GenerateVideo from "./generate-video";
-import { JobState, Track } from "@/types/editor";
+import { Track } from "@/types/editor";
 import { useMediaController } from "./hooks/useMediaController";
 import { useQuery } from "@tanstack/react-query";
 import { useGetJson } from "@/hooks/useGetJson";
@@ -15,25 +15,11 @@ import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import { toast } from "sonner";
 
-type HomeClientProps = {
-  initialTaskId?: string;
-}
 
 const VIDEO_SRC = "/api/media/never.mp4";
 
-// export enum JobState {
-//   STARTED = "started",
-//   STAGING = "staging",
-//   READY = "ready",
-//   RUNNING = "running",
-//   VIDEOS_SEGMENTED = "videos_segmented",
-//   DONE = "done",
-//   FAILED = "failed"
-// }
 
-
-
-export default function HomeClient({ initialTaskId }: HomeClientProps) {
+export default function HomeClient() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [editedTracks, setEditedTracks] = useState<Track[] | null>(null);
   const [chosenTask, setChosenTask] = useState<Task | null>(null);
@@ -105,6 +91,13 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
     }
   }, [chosenTask?.id, setAudioSrc])
 
+
+  function onProjectSelect(e: SelectChangeEvent<number>) {
+    const task = tasks?.find((t) => t.id === e.target.value) ?? null;
+    setChosenTask(task);
+    setEditedTracks(null)
+  }
+
   return (
     <Box sx={{ height: '100vh', display: "flex", flexDirection: "column" }}>
       <Box sx={{ height: '60%', display: "flex", flexDirection: "row", minHeight: 0 }} >
@@ -112,25 +105,10 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
           <Typography variant="h4" gutterBottom>
             Generate videos
           </Typography>
-          <FormControl fullWidth>
-            <InputLabel>Project</InputLabel>
-            <Select
-              value={chosenTask?.id || ""}
-              label="Project"
-              onChange={(e) => {
-                const task = tasks?.find((t) => t.id === e.target.value) ?? null;
-                setChosenTask(task);
-                setEditedTracks(null)
-              }}
-            >
-              {tasks?.map((task) => (
-                <MenuItem key={task.id} value={task.id}>
-                  {task.id}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
           <UploadFile
+            tasks={tasks || null}
+            chosenTask={chosenTask}
+            onProjectSelect={onProjectSelect}
             file={audioFile}
             setFileAction={setAudioFile}
             jobStatus={jobStatus}
@@ -141,10 +119,10 @@ export default function HomeClient({ initialTaskId }: HomeClientProps) {
               Debug controls
             </Typography>
             <Button variant="contained" color="primary" onClick={() => pollSegmentsMutation.mutate()} disabled={pollSegmentsMutation.isPending || !chosenTask}>
-              start polling
+              Poll segments
             </Button>
             <Button variant="contained" color="primary" onClick={() => pollVideosMutation.mutate()} disabled={pollVideosMutation.isPending || !chosenTask}>
-              start polling videos
+              Poll videos
             </Button>
           </Box>
         </Box>

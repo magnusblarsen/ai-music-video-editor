@@ -373,8 +373,8 @@ async def poll_and_store_videos(task_id: int) -> None:
         / f"test_run_{task_id}"
     )
 
-    # TODO: make sure segments.json is only created in the end
     remote_manifest = remote_output_dir / "segments.json"
+    # remote_manifest = remote_output_dir / "manifest.json" # TODO: use this
 
     try:
         manifest_text = await _wait_for_remote_file(
@@ -395,8 +395,9 @@ async def poll_and_store_videos(task_id: int) -> None:
             for item in payload:
                 clip_index = item["index"]
 
-                file_name = f"scene-{clip_index + 1}.mp4"
+                file_name = f"scene-{clip_index + 1}.mp4"  # TODO: use manifest.json instead
                 remote_file = remote_output_dir / file_name
+                # remote_file = item["video_path"]
 
                 local_file = local_media_dir / file_name
 
