@@ -50,3 +50,7 @@ class TaskRepository:
             task.job_id = job_id
 
         return task
+
+    def delete(self, id: int) -> None:
+        task = self.require(id)
+        self.db.delete(task)

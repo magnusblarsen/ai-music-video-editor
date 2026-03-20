@@ -14,3 +14,7 @@ class TaskRecord(BaseModel):
     error: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class GenerateVideoRequest(BaseModel):
+    additional_prompt: str

@@ -1,8 +1,8 @@
 "use client"
 
-import { Typography, Box, Button, SelectChangeEvent } from "@mui/material";
+import { Typography, Box, SelectChangeEvent } from "@mui/material";
 import VideoPlayer from "./video-player";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { JobStatus, Task } from "@/types";
 import Timeline from "./timeline/timeline";
 import UploadFile from "./upload-file";
@@ -11,18 +11,18 @@ import { Track } from "@/types/editor";
 import { useMediaController } from "./hooks/useMediaController";
 import { useQuery } from "@tanstack/react-query";
 import { useGetJson } from "@/hooks/useGetJson";
-import { useMutation } from "@tanstack/react-query";
-import axios from "axios";
-import { toast } from "sonner";
-
-
-const VIDEO_SRC = "/api/media/never.mp4";
+import DebugControls from "./debug-controls";
 
 
 export default function HomeClient() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [editedTracks, setEditedTracks] = useState<Track[] | null>(null);
   const [chosenTask, setChosenTask] = useState<Task | null>(null);
+
+  const videoSrc = useMemo(() => {
+    if (!chosenTask) return null;
+    return `/api/media/${chosenTask.id}/final_video.mp4`;
+  }, [chosenTask])
 
   const { data: tasks } = useGetJson<Task[]>(["tasks"], "/api/tasks");
 
@@ -59,27 +59,6 @@ export default function HomeClient() {
     }
   );
 
-  const pollSegmentsMutation = useMutation({
-    mutationFn: () => {
-      return axios.post(`/api/tasks/${chosenTask?.id}/poll-segments`);
-    },
-    onError: (err) => {
-      toast.error(`Failed to start polling: ${err.message}`);
-    }
-  })
-
-  const pollVideosMutation = useMutation({
-    mutationFn: () => {
-      return axios.post(`/api/tasks/${chosenTask?.id}/poll-videos`);
-    },
-    onSuccess: () => {
-      toast.success("Polling started successfully");
-    },
-    onError: (err) => {
-      toast.error(`Failed to start polling: ${err.message}`);
-    }
-  })
-
 
   const tracks = editedTracks ?? fetchedTracks ?? []
 
@@ -100,7 +79,7 @@ export default function HomeClient() {
 
   return (
     <Box sx={{ height: '100vh', display: "flex", flexDirection: "column" }}>
-      <Box sx={{ height: '60%', display: "flex", flexDirection: "row", minHeight: 0 }} >
+      <Box sx={{ height: '70%', display: "flex", flexDirection: "row", minHeight: 0 }} >
         <Box className="flex-1 min-w-0 min-h-0 p-2">
           <Typography variant="h4" gutterBottom>
             Generate videos
@@ -114,21 +93,11 @@ export default function HomeClient() {
             jobStatus={jobStatus}
           />
           <GenerateVideo taskId={chosenTask?.id || null} jobStatus={jobStatus} />
-          <Box className="flex flex-col items-start border-2 p-4 gap-2 rounded border-gray-300">
-            <Typography variant="h6" gutterBottom>
-              Debug controls
-            </Typography>
-            <Button variant="contained" color="primary" onClick={() => pollSegmentsMutation.mutate()} disabled={pollSegmentsMutation.isPending || !chosenTask}>
-              Poll segments
-            </Button>
-            <Button variant="contained" color="primary" onClick={() => pollVideosMutation.mutate()} disabled={pollVideosMutation.isPending || !chosenTask}>
-              Poll videos
-            </Button>
-          </Box>
+          <DebugControls chosenTask={chosenTask} />
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, mt: 2 }}>
           <VideoPlayer
-            videoSrc={VIDEO_SRC}
+            videoSrc={videoSrc}
             videoRef={videoRef}
             audioSrc={audioSrc || undefined}
             audioRef={audioRef}

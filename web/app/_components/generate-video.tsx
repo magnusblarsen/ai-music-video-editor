@@ -1,10 +1,12 @@
 "use client"
 
-import { Button, Box } from "@mui/material"
+import { Button, TextField } from "@mui/material"
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { JobState, JobStatus } from "@/types/editor";
 import ControlsContainer from "@/components/ControlsContainer";
+import { useState } from "react";
+import axios from "axios";
 
 type Props = {
   taskId: number | null;
@@ -13,13 +15,16 @@ type Props = {
 
 export default function GenerateVideo({ taskId, jobStatus }: Props) {
   const queryClient = useQueryClient();
+  const [text, setText] = useState("");
 
   const generateVideoMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       toast.info("Starting upload...");
-      return fetch(`/api/run/${taskId}`, {
-        method: "POST",
-      });
+      const response = await axios.post(`/api/run/${taskId}`, {
+        additionalPrompt: text,
+      })
+
+      return response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -34,6 +39,14 @@ export default function GenerateVideo({ taskId, jobStatus }: Props) {
   return (
     <ControlsContainer>
       <Button disabled={jobStatus?.state != JobState.READY} variant="contained" onClick={() => generateVideoMutation.mutate()}>Generate Video</Button>
+      <TextField
+        label="Additional prompt (optional)"
+        multiline
+        rows={4}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        fullWidth
+      />
     </ControlsContainer>
   )
 }

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { JobState, JobStatus, Task } from "@/types/editor";
 import ControlsContainer from "@/components/ControlsContainer";
+import axios from "axios";
 
 const stateToLabel: Record<JobState, string> = {
   "started": "The task has started",
@@ -70,6 +71,20 @@ export default function UploadFile({ file, setFileAction, jobStatus, onProjectSe
     }
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async (taskId: number) => {
+      const response = await axios.delete(`/api/tasks/${taskId}`);
+      return response.data
+    },
+    onSuccess: () => {
+      toast.success("Project deleted successfully");
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete project: ${error.message}`);
+    }
+  })
+
+
 
   return (
     <ControlsContainer>
@@ -97,6 +112,9 @@ export default function UploadFile({ file, setFileAction, jobStatus, onProjectSe
       <Button variant="contained" onClick={() => setOpen(true)}>
         Create new project
       </Button>
+      <Button variant="outlined" color="error" onClick={() => deleteMutation.mutate(chosenTask!.id)}>
+        Delete project
+      </Button>
       <Dialog open={open} onClose={() => setOpen(false)}>
         <DialogTitle>Upload audio file to make new project</DialogTitle>
         <DialogContent>
@@ -123,6 +141,11 @@ export default function UploadFile({ file, setFileAction, jobStatus, onProjectSe
       {jobStatus && (
         <Typography variant="body1" color={jobStatus.state === "failed" ? "error" : "textPrimary"} gutterBottom>
           Status: {stateToLabel[jobStatus.state]}
+        </Typography>
+      )}
+      {jobStatus?.state == JobState.FAILED && jobStatus?.error && (
+        <Typography color="error">
+          Message: {jobStatus.error}
         </Typography>
       )}
     </ControlsContainer>

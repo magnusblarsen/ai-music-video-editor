@@ -5,13 +5,14 @@ from fastapi import UploadFile, File, HTTPException, APIRouter, BackgroundTasks,
 from app.db import get_db
 from app.repositories.task_repository import TaskRepository
 from app.core.config import get_directories
-from app.services.slurm import stage_audio, run_and_poll_task, poll_video_segments, poll_and_store_videos
+from app.services.slurm import stage_audio, run_and_poll_task, poll_video_segments, poll_and_store_videos, concatenate_videos, compose_videos_on_timeline
 from app.models import TaskState
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.schemas.track import TrackRead
+from app.schemas.task import GenerateVideoRequest
 
-from app.models import Track
+from app.models import Track, Clip
 
 
 router = APIRouter(tags=["tasks"])
@@ -48,18 +49,18 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
                 out.write(chunk)
         db.commit()
 
+        background_tasks.add_task(
+            stage_audio,
+            task_id=task_id,
+            local_path=str(local_path),
+            ext=ext,
+        )
+
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
     finally:
         await file.close()
-
-    background_tasks.add_task(
-        stage_audio,
-        task_id=task_id,
-        local_path=str(local_path),
-        ext=ext,
-    )
 
     return task
 
@@ -74,7 +75,7 @@ async def get_status(task_id: int, db=Depends(get_db)):
 
 
 @router.post("/run/{task_id}")
-async def run_task(task_id: str, background_tasks: BackgroundTasks, db=Depends(get_db)):
+async def run_task(task_id: str, body: GenerateVideoRequest, background_tasks: BackgroundTasks, db=Depends(get_db)):
     repo = TaskRepository(db)
     task = repo.get(task_id)
 
@@ -91,7 +92,7 @@ async def run_task(task_id: str, background_tasks: BackgroundTasks, db=Depends(g
     )
     db.commit()
 
-    background_tasks.add_task(run_and_poll_task, task_id=task_id)
+    background_tasks.add_task(run_and_poll_task, task_id=task_id, additional_prompt=body.additional_prompt)
 
     return {"ok": True, "task_id": task_id}
 
@@ -147,9 +148,45 @@ async def poll_videos(task_id: int, background_tasks: BackgroundTasks, db=Depend
 
     if not task:
         raise HTTPException(status_code=404, detail="Not found")
-    if task.state not in {TaskState.videos_segmented, TaskState.failed}:
+    if task.state not in {TaskState.videos_segmented, TaskState.failed, TaskState.done}:
         raise HTTPException(status_code=400, detail=f"Task not ready to poll videos (current state: {task.state})")
 
     background_tasks.add_task(poll_and_store_videos, task_id=task_id)
 
     return {"ok": True, "task_id": task_id}
+
+
+@router.post("/tasks/{task_id}/concat")
+def concat_videos(task_id: int, db=Depends(get_db)):
+    repo = TaskRepository(db)
+    task = repo.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    stmt = (
+        select(Clip)
+        .join(Clip.track)
+        .where(Track.task_id == task_id)
+        .order_by(Clip.clip_index)
+    )
+
+    clips = db.scalars(stmt).all()
+    output_path = get_directories().media / str(task_id) / "final_video.mp4"
+
+    audio_path = get_directories().media / f"{task_id}.mp3"
+
+    # output = concatenate_videos(clips, output_path=output_path)
+    output = compose_videos_on_timeline(clips, audio_path=audio_path, output_path=output_path)
+    return {"output": output}
+
+
+@router.delete("/tasks/{task_id}")
+def delete_task(task_id: int, db=Depends(get_db)):
+    repo = TaskRepository(db)
+    task = repo.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    repo.delete(task_id)
+    db.commit()
+    return {"ok": True}

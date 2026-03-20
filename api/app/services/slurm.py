@@ -4,8 +4,8 @@ from app.services.hpc_client import HpcClient
 from app.db import SessionLocal
 from app.repositories.task_repository import TaskRepository
 from app.models import Clip, Track
-from pathlib import Path
 import logging
+from moviepy import VideoFileClip, concatenate_videoclips, AudioFileClip, CompositeVideoClip, ColorClip
 
 from app.models import TaskState
 
@@ -35,7 +35,7 @@ def _set_task_state(
         db.commit()
 
 
-async def run_and_poll_task(task_id: int) -> None:
+async def run_and_poll_task(task_id: int, additional_prompt: str) -> None:
 
     db = SessionLocal()
     try:
@@ -50,7 +50,7 @@ async def run_and_poll_task(task_id: int) -> None:
     finally:
         db.close()
 
-    await run_slurm_job(task_id=task_id)
+    await run_slurm_job(task_id=task_id, additional_prompt=additional_prompt)
 
     await poll_video_segments(
         task_id=task_id,
@@ -59,7 +59,7 @@ async def run_and_poll_task(task_id: int) -> None:
     await poll_and_store_videos(task_id)
 
 
-async def run_slurm_job(task_id: int) -> None:
+async def run_slurm_job(task_id: int, additional_prompt: str) -> None:
     directories = get_directories()
     settings = get_hpc_config()
     db = SessionLocal()
@@ -88,6 +88,7 @@ async def run_slurm_job(task_id: int) -> None:
             job_contents = build_job_script(
                 remote_dir=remote_dir,
                 remote_audio_path=remote_audio_path,
+                additional_prompt=additional_prompt,
             )
             await client.sftp_put_text(job_contents, remote_job_script)
 
@@ -168,7 +169,7 @@ async def stage_audio(task_id: str, local_path: str, ext: str) -> None:
         db.close()
 
 
-def build_job_script(remote_dir: str, remote_audio_path: str) -> str:
+def build_job_script(remote_dir: str, remote_audio_path: str, additional_prompt: str) -> str:
     job_name = f"audio_{Path(remote_dir).name}"
 
     return f"""#!/bin/bash
@@ -188,7 +189,7 @@ set -euo pipefail
 TEST_RUN_NAME="test_run_{Path(remote_dir).name}"
 AUDIO_PATH="{remote_audio_path}"
 RUN_DESCRIPTION="LALM test"
-ADDITIONAL_PROMPT="The story should have at least one plot twist."
+ADDITIONAL_PROMPT="{additional_prompt}"
 FORCED_VIDEO_PROMPT=""
 
 echo "Running on $(hostname)"
@@ -391,15 +392,20 @@ async def poll_and_store_videos(task_id: int) -> None:
         local_media_dir = Path(directories.media) / str(task_id)
         local_media_dir.mkdir(parents=True, exist_ok=True)
 
+        video_paths = []
+        # TODO: skal være i rækkefølge
         async with HpcClient(settings) as client:
             for item in payload:
                 clip_index = item["index"]
 
-                file_name = f"scene-{clip_index + 1}.mp4"  # TODO: use manifest.json instead
-                remote_file = remote_output_dir / file_name
-                # remote_file = item["video_path"]
+                remote_file = remote_output_dir / f"scene-{clip_index + 1}.mp4"
+                # remote_file = Path(directories.hpc_base) / "Music-Visualization-Generation-Pipeline" / item["video_path"]
+
+                file_name = f"clip_{clip_index + 1}.mp4"
+                # file_name = remote_file.name
 
                 local_file = local_media_dir / file_name
+                video_paths.append(str(local_file))
 
                 logger.info("Downloading video for clip_index=%s from %s to %s", clip_index, remote_file, local_file)
                 await client.sftp_get(str(remote_file), str(local_file))
@@ -418,6 +424,8 @@ async def poll_and_store_videos(task_id: int) -> None:
                     clip.url = str(local_file)
                     db.commit()
 
+        concatenate_videos(video_paths, str(local_media_dir / "final_video.mp4"))
+
         _set_task_state(
             task_id,
             state=TaskState.done,
@@ -433,3 +441,147 @@ async def poll_and_store_videos(task_id: int) -> None:
             error=str(e),
         )
         raise
+
+
+def concatenate_videos(video_clips: list[Clip], output_path: str, audio_path) -> str:
+    ordered_clips = sorted(video_clips, key=lambda c: c.start_seconds)
+    moviepy_clips = []
+    final_video = None
+
+    try:
+        moviepy_clips = [VideoFileClip(clip.url) for clip in ordered_clips]
+        final_video = concatenate_videoclips(moviepy_clips, method="compose")
+        final_video.write_videofile(output_path, codec="libx264", audio_codec="aac")
+        logger.info(f"Concatenated {len(ordered_clips)} videos into {output_path}")
+        return output_path
+    finally:
+        if final_video:
+            final_video.close()
+        for clip in moviepy_clips:
+            clip.close()
+
+
+def old_compose_videos_on_timeline(clips: list[Clip], audio_path: str, output_path: str) -> str:
+    ordered_clips = sorted(clips, key=lambda c: (c.start_seconds, c.clip_index))
+
+    moviepy_clips = []
+    final_video = None
+
+    try:
+        for c in ordered_clips:
+            clip = VideoFileClip(c.url).with_start(c.start_seconds)
+            moviepy_clips.append(clip)
+
+        total_duration = max(c.end_seconds for c in ordered_clips)
+        final_video = CompositeVideoClip(moviepy_clips, size=moviepy_clips[0].size).set_duration(total_duration)
+        final_video.write_videofile(output_path, codec="libx264", audio_codec="aac")
+
+        return output_path
+    finally:
+        if final_video is not None:
+            final_video.close()
+        for clip in moviepy_clips:
+            clip.close()
+
+    audio_clip = AudioFileClip(audio_path)
+
+    audio_duration = audio_clip.duration
+    video_duration = final_video.duration
+
+    if video_duration > audio_duration:
+        final_video = final_video.subclip(0, audio_duration - 0.05)
+        logger.warning(f"Video duration ({video_duration:.2f}s) exceeded audio duration ({audio_duration:.2f}s). Trimmed video to match.")
+    elif audio_duration > video_duration:
+        # TODO: put black screen at the end of the video
+        condfsdsf = "sdfk"
+
+
+def compose_videos_on_timeline(
+    clips: list[Clip],
+    audio_path: str,
+    output_path: str,
+) -> str:
+    ordered_clips = sorted(
+        [c for c in clips if c.url],
+        key=lambda c: (c.start_seconds, c.clip_index),
+    )
+
+    if not ordered_clips:
+        raise ValueError("No clips with valid URLs provided")
+
+    moviepy_clips = []
+    source_clips = []
+    audio_clip = None
+    final_video = None
+
+    try:
+        first_db_clip = ordered_clips[0]
+        first_source = VideoFileClip(first_db_clip.url)
+        source_clips.append(first_source)
+
+        base_size = first_source.size
+        first_usable_duration = min(first_db_clip.duration_seconds, first_source.duration)  # Error if duration_seconds is lower than video
+
+        first_timeline_clip = (
+            first_source
+            .subclipped(0, first_usable_duration)
+            .with_start(first_db_clip.start_seconds)
+        )
+        moviepy_clips.append(first_timeline_clip)
+
+        for c in ordered_clips[1:]:
+            source = VideoFileClip(c.url)
+            source_clips.append(source)
+
+            usable_duration = min(c.duration_seconds, source.duration)
+
+            timeline_clip = (
+                source
+                .subclipped(0, usable_duration)
+                .resized(base_size)
+                .with_start(c.start_seconds)
+            )
+            moviepy_clips.append(timeline_clip)
+
+        timeline_duration = max(c.end_seconds for c in ordered_clips)
+
+        audio_clip = AudioFileClip(audio_path)
+        audio_duration = audio_clip.duration
+
+        if audio_duration > timeline_duration:
+            padding = (
+                ColorClip(
+                    size=base_size,
+                    color=(0, 0, 0),
+                    duration=audio_duration - timeline_duration,
+                )
+                .with_start(timeline_duration)
+            )
+            moviepy_clips.append(padding)
+            target_duration = audio_duration
+        else:
+            target_duration = max(0, audio_duration - 0.05)
+
+        final_video = (
+            CompositeVideoClip(moviepy_clips, size=base_size)
+            .with_duration(target_duration)
+            .with_audio(audio_clip)
+        )
+
+        final_video.write_videofile(
+            output_path,
+            codec="libx264",
+            audio_codec="aac",
+        )
+
+        return output_path
+
+    finally:
+        if final_video is not None:
+            final_video.close()
+        if audio_clip is not None:
+            audio_clip.close()
+        for clip in moviepy_clips:
+            clip.close()
+        for source in source_clips:
+            source.close()

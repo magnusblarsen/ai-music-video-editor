@@ -1,11 +1,11 @@
 "use client"
 
-import { Box } from '@mui/material'
+import { Paper } from '@mui/material'
 
 export default function ControlsContainer({ children }: { children: React.ReactNode }) {
   return (
-    <Box className="flex flex-col items-start border-2 p-4 gap-2 rounded border-gray-300">
+    <Paper variant="outlined" className="flex flex-col items-start p-4 gap-2 mb-4">
       {children}
-    </Box>
+    </Paper>
   )
 }
