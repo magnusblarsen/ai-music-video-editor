@@ -159,9 +159,8 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
   };
 
 
-
   return (
-    <Box className="flex flex-col flex-1 min-h-0 p-2">
+    <Box className="flex flex-col flex-1 min-h-0 px-2 pb-4">
       <Box className="flex justify-between">
         <Box>
           {isPlaying ? (

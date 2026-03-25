@@ -5,7 +5,7 @@ from app.db import SessionLocal
 from app.repositories.task_repository import TaskRepository
 from app.models import Clip, Track
 import logging
-from moviepy import VideoFileClip, concatenate_videoclips, AudioFileClip, CompositeVideoClip, ColorClip
+from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, ColorClip
 
 from app.models import TaskState
 
@@ -50,7 +50,7 @@ async def run_and_poll_task(task_id: int, additional_prompt: str) -> None:
     finally:
         db.close()
 
-    await run_slurm_job(task_id=task_id, additional_prompt=additional_prompt)
+    await run_full_video_job(task_id=task_id, additional_prompt=additional_prompt)
 
     await poll_video_segments(
         task_id=task_id,
@@ -59,7 +59,32 @@ async def run_and_poll_task(task_id: int, additional_prompt: str) -> None:
     await poll_and_store_videos(task_id)
 
 
-async def run_slurm_job(task_id: int, additional_prompt: str) -> None:
+async def run_and_poll_scene_task(task_id: str, clip_id: str, scene_number: int, prompt: str, duration_seconds: float, destination_folder: Path) -> None:
+    settings = get_hpc_config()
+    directories = get_directories()
+
+    job_id = await run_scene_job(task_id=task_id, scene_number=scene_number, prompt=prompt, duration_seconds=duration_seconds, destination_folder=destination_folder)
+    await wait_for_slurm_completion(job_id=job_id)
+
+    remote_file = Path(directories.hpc_base) / "Music-Visualization-Generation-Pipeline" / destination_folder / f"scene_{scene_number}.mp4"
+
+    file_name = remote_file.name
+    local_file = Path(directories.media) / str(task_id) / file_name
+
+    async with HpcClient(settings) as client:
+        await client.sftp_get(str(remote_file), str(local_file))  # TODO: make sure it overwrites
+
+    with SessionLocal() as db:
+        clips = db.query(Clip).join(Track).filter(Track.task_id == task_id).all()
+
+        compose_videos_on_timeline(
+            clips=clips,
+            audio_path=str(Path(directories.media) / f"{task_id}.mp3"),
+            output_path=str(Path(directories.media) / str(task_id) / "final_video.mp4"),
+        )
+
+
+async def run_full_video_job(task_id: int, additional_prompt: str) -> None:
     directories = get_directories()
     settings = get_hpc_config()
     db = SessionLocal()
@@ -85,7 +110,7 @@ async def run_slurm_job(task_id: int, additional_prompt: str) -> None:
                 raise FileNotFoundError("No audio file found in remote directory")
 
             remote_audio_path = f"{remote_dir}/{audio_file.strip()}"
-            job_contents = build_job_script(
+            job_contents = full_video_job_script(
                 remote_dir=remote_dir,
                 remote_audio_path=remote_audio_path,
                 additional_prompt=additional_prompt,
@@ -114,7 +139,58 @@ async def run_slurm_job(task_id: int, additional_prompt: str) -> None:
                 error=str(e),
             )
         except Exception:
-            pass
+            logger.exception("Failed to persist failed state for task %s", task_id)
+        raise
+    finally:
+        db.close()
+
+
+async def run_scene_job(task_id: int, scene_number: int, prompt: str, duration_seconds: float, destination_folder: Path) -> str:
+    directories = get_directories()
+    settings = get_hpc_config()
+    db = SessionLocal()
+
+    try:
+        repo = TaskRepository(db)
+
+        async with HpcClient(settings) as client:
+            remote_dir = f"{directories.hpc_base}/uploads/{task_id}"
+            remote_job_script = f"{remote_dir}/scene_{scene_number}.sbatch"
+
+            job_contents = scene_job_script(
+                remote_dir=remote_dir,
+                scene_number=scene_number,
+                prompt=prompt,
+                duration_seconds=duration_seconds,
+                destination_folder=destination_folder,
+            )
+            await client.sftp_put_text(job_contents, remote_job_script)
+
+            result = await client.run(f"sbatch {remote_job_script}")
+            job_id = result.strip().split()[-1]
+
+            repo.update_state(
+                task_id,
+                state=TaskState.running,
+                message=f"Job submitted (ID: {job_id})",
+                progress=50,
+                job_id=job_id,
+            )
+            db.commit()
+            return job_id
+
+    except Exception as e:
+        try:
+            repo.update_state(
+                task_id,
+                state=TaskState.failed,
+                message="Job submission failed",
+                progress=100,
+                error=str(e),
+            )
+        except Exception:
+            logger.exception("Failed to persist failed state for task %s", task_id)
+        raise
     finally:
         db.close()
 
@@ -169,7 +245,7 @@ async def stage_audio(task_id: str, local_path: str, ext: str) -> None:
         db.close()
 
 
-def build_job_script(remote_dir: str, remote_audio_path: str, additional_prompt: str) -> str:
+def full_video_job_script(remote_dir: str, remote_audio_path: str, additional_prompt: str) -> str:
     job_name = f"audio_{Path(remote_dir).name}"
 
     return f"""#!/bin/bash
@@ -207,6 +283,42 @@ cd /home/brml/Music-Visualization-Generation-Pipeline
 echo "Running main.py with variables: $TEST_RUN_NAME, $AUDIO_PATH, $RUN_DESCRIPTION, $ADDITIONAL_PROMPT, $FORCED_VIDEO_PROMPT"
 
 python src/main.py "$TEST_RUN_NAME" "$AUDIO_PATH" "$RUN_DESCRIPTION" "$ADDITIONAL_PROMPT" "$FORCED_VIDEO_PROMPT"
+"""
+
+
+def scene_job_script(remote_dir: str, scene_number: int, prompt: str, duration_seconds: float, destination_folder: Path) -> str:
+    job_name = f"audio_{Path(remote_dir).name}"
+
+    return f"""#!/bin/bash
+#SBATCH --job-name={job_name}
+#SBATCH --output={remote_dir}/clap-%j.out
+#SBATCH --error={remote_dir}/clap-%j.err
+#SBATCH --time=12:00:00
+#SBATCH --ntasks=1
+#SBATCH --nodes=1
+#SBATCH --partition=dgx1
+#SBATCH --cpus-per-task=8 # 16
+#SBATCH --mem=48G # 96G
+
+SCENE_NUMBER={scene_number}
+PROMPT="{prompt}"
+DURATION_SECONDS={duration_seconds}
+DESTINATION_FOLDER="{destination_folder}"
+
+set -euo pipefail
+
+
+echo "Running on $(hostname)"
+nvidia-smi
+
+source /usr/local/minicondas/Miniconda3-py312_25.9.1-3-Linux-aarch64/etc/profile.d/conda.sh
+conda activate /home/brml/DGX1/mycondas/gpu312
+
+cd /home/brml/Music-Visualization-Generation-Pipeline
+
+echo "Running pipeline_runner.py with variables: scene_number=$SCENE_NUMBER, prompt=$PROMPT, duration_seconds=$DURATION_SECONDS, destination_folder=$DESTINATION_FOLDER"
+
+python src/pipeline_runner.py "$SCENE_NUMBER" "$PROMPT" "$DURATION_SECONDS" "$DESTINATION_FOLDER"
 """
 
 
@@ -321,7 +433,6 @@ async def _wait_for_remote_file(
 
 
 async def wait_for_slurm_completion(
-    task_id: int,
     job_id: str,
     poll_interval_seconds: float = 30.0,
     timeout_seconds: float = 60 * 60 * 12,
@@ -345,7 +456,7 @@ async def wait_for_slurm_completion(
                     continue
                 job_id_raw, state_str = parts
                 if job_id_raw == job_id:
-                    state = job_id_raw.strip().upper()
+                    state = state_str.strip().upper()
                     break
 
             logger.info("Slurm job %s state=%s", job_id, state)
@@ -374,8 +485,8 @@ async def poll_and_store_videos(task_id: int) -> None:
         / f"test_run_{task_id}"
     )
 
-    remote_manifest = remote_output_dir / "segments.json"
-    # remote_manifest = remote_output_dir / "manifest.json" # TODO: use this
+    # remote_manifest = remote_output_dir / "segments.json"
+    remote_manifest = remote_output_dir / "manifest.json"  # TODO: use this
 
     try:
         manifest_text = await _wait_for_remote_file(
@@ -393,16 +504,15 @@ async def poll_and_store_videos(task_id: int) -> None:
         local_media_dir.mkdir(parents=True, exist_ok=True)
 
         video_paths = []
-        # TODO: skal være i rækkefølge
         async with HpcClient(settings) as client:
             for item in payload:
                 clip_index = item["index"]
 
-                remote_file = remote_output_dir / f"scene-{clip_index + 1}.mp4"
-                # remote_file = Path(directories.hpc_base) / "Music-Visualization-Generation-Pipeline" / item["video_path"]
+                # remote_file = remote_output_dir / f"scene-{clip_index + 1}.mp4"
+                remote_file = Path(directories.hpc_base) / "Music-Visualization-Generation-Pipeline" / item["video_path"]
 
-                file_name = f"clip_{clip_index + 1}.mp4"
-                # file_name = remote_file.name
+                # file_name = f"clip_{clip_index + 1}.mp4"
+                file_name = remote_file.name
 
                 local_file = local_media_dir / file_name
                 video_paths.append(str(local_file))
@@ -424,7 +534,17 @@ async def poll_and_store_videos(task_id: int) -> None:
                     clip.url = str(local_file)
                     db.commit()
 
-        concatenate_videos(video_paths, str(local_media_dir / "final_video.mp4"))
+        audio_path = str(Path(directories.hpc_base) / "uploads" / f"{task_id}" / "input.mp3")
+
+        with SessionLocal() as db:
+            clips = (
+                db.query(Clip)
+                .join(Track)
+                .filter(Track.task_id == task_id)
+                .order_by(Clip.clip_index)
+                .all()
+            )
+            compose_videos_on_timeline(clips=clips, audio_path=audio_path, output_path=str(local_media_dir / "final_video.mp4"))
 
         _set_task_state(
             task_id,
@@ -443,57 +563,22 @@ async def poll_and_store_videos(task_id: int) -> None:
         raise
 
 
-def concatenate_videos(video_clips: list[Clip], output_path: str, audio_path) -> str:
-    ordered_clips = sorted(video_clips, key=lambda c: c.start_seconds)
-    moviepy_clips = []
-    final_video = None
-
-    try:
-        moviepy_clips = [VideoFileClip(clip.url) for clip in ordered_clips]
-        final_video = concatenate_videoclips(moviepy_clips, method="compose")
-        final_video.write_videofile(output_path, codec="libx264", audio_codec="aac")
-        logger.info(f"Concatenated {len(ordered_clips)} videos into {output_path}")
-        return output_path
-    finally:
-        if final_video:
-            final_video.close()
-        for clip in moviepy_clips:
-            clip.close()
-
-
-def old_compose_videos_on_timeline(clips: list[Clip], audio_path: str, output_path: str) -> str:
-    ordered_clips = sorted(clips, key=lambda c: (c.start_seconds, c.clip_index))
-
-    moviepy_clips = []
-    final_video = None
-
-    try:
-        for c in ordered_clips:
-            clip = VideoFileClip(c.url).with_start(c.start_seconds)
-            moviepy_clips.append(clip)
-
-        total_duration = max(c.end_seconds for c in ordered_clips)
-        final_video = CompositeVideoClip(moviepy_clips, size=moviepy_clips[0].size).set_duration(total_duration)
-        final_video.write_videofile(output_path, codec="libx264", audio_codec="aac")
-
-        return output_path
-    finally:
-        if final_video is not None:
-            final_video.close()
-        for clip in moviepy_clips:
-            clip.close()
-
-    audio_clip = AudioFileClip(audio_path)
-
-    audio_duration = audio_clip.duration
-    video_duration = final_video.duration
-
-    if video_duration > audio_duration:
-        final_video = final_video.subclip(0, audio_duration - 0.05)
-        logger.warning(f"Video duration ({video_duration:.2f}s) exceeded audio duration ({audio_duration:.2f}s). Trimmed video to match.")
-    elif audio_duration > video_duration:
-        # TODO: put black screen at the end of the video
-        condfsdsf = "sdfk"
+# def concatenate_videos(video_clips: list[Clip], output_path: str, audio_path) -> str:
+#     ordered_clips = sorted(video_clips, key=lambda c: c.start_seconds)
+#     moviepy_clips = []
+#     final_video = None
+#
+#     try:
+#         moviepy_clips = [VideoFileClip(clip.url) for clip in ordered_clips]
+#         final_video = concatenate_videoclips(moviepy_clips, method="compose")
+#         final_video.write_videofile(output_path, codec="libx264", audio_codec="aac")
+#         logger.info(f"Concatenated {len(ordered_clips)} videos into {output_path}")
+#         return output_path
+#     finally:
+#         if final_video:
+#             final_video.close()
+#         for clip in moviepy_clips:
+#             clip.close()
 
 
 def compose_videos_on_timeline(
@@ -503,12 +588,10 @@ def compose_videos_on_timeline(
 ) -> str:
     ordered_clips = sorted(
         [c for c in clips if c.url],
-        key=lambda c: (c.start_seconds, c.clip_index),
+        key=lambda c: (c.start_seconds, c.clip_index)
     )
-
     if not ordered_clips:
         raise ValueError("No clips with valid URLs provided")
-
     moviepy_clips = []
     source_clips = []
     audio_clip = None

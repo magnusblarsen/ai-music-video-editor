@@ -21,7 +21,7 @@ export default function GenerateVideo({ taskId, jobStatus }: Props) {
     mutationFn: async () => {
       toast.info("Starting upload...");
       const response = await axios.post(`/api/run/${taskId}`, {
-        additionalPrompt: text,
+        additional_prompt: text,
       })
 
       return response.data
@@ -38,7 +38,7 @@ export default function GenerateVideo({ taskId, jobStatus }: Props) {
 
   return (
     <ControlsContainer>
-      <Button disabled={jobStatus?.state != JobState.READY} variant="contained" onClick={() => generateVideoMutation.mutate()}>Generate Video</Button>
+      <Button disabled={!(jobStatus?.state == JobState.READY || jobStatus?.state == JobState.FAILED)} variant="contained" onClick={() => generateVideoMutation.mutate()}>Generate Video</Button>
       <TextField
         label="Additional prompt (optional)"
         multiline

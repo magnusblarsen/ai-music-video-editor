@@ -79,7 +79,8 @@ export default function HomeClient() {
 
   return (
     <Box sx={{ height: '100vh', display: "flex", flexDirection: "column" }}>
-      <Box sx={{ height: '70%', display: "flex", flexDirection: "row", minHeight: 0 }} >
+      {/* <Box sx={{ height: '70%', display: "flex", flexDirection: "row", minHeight: 0 }} > */}
+      <Box sx={{ display: "flex", flexDirection: "row", minHeight: 0 }} >
         <Box className="flex-1 min-w-0 min-h-0 p-2">
           <Typography variant="h4" gutterBottom>
             Generate videos

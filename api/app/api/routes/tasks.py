@@ -5,12 +5,12 @@ from fastapi import UploadFile, File, HTTPException, APIRouter, BackgroundTasks,
 from app.db import get_db
 from app.repositories.task_repository import TaskRepository
 from app.core.config import get_directories
-from app.services.slurm import stage_audio, run_and_poll_task, poll_video_segments, poll_and_store_videos, concatenate_videos, compose_videos_on_timeline
+from app.services.slurm import stage_audio, run_and_poll_task, poll_video_segments, poll_and_store_videos, compose_videos_on_timeline, run_and_poll_scene_task
 from app.models import TaskState
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.schemas.track import TrackRead
-from app.schemas.task import GenerateVideoRequest
+from app.schemas.task import GenerateVideosRequest, RegenerateVideoRequest
 
 from app.models import Track, Clip
 
@@ -75,13 +75,13 @@ async def get_status(task_id: int, db=Depends(get_db)):
 
 
 @router.post("/run/{task_id}")
-async def run_task(task_id: str, body: GenerateVideoRequest, background_tasks: BackgroundTasks, db=Depends(get_db)):
+async def run_task(task_id: str, body: GenerateVideosRequest, background_tasks: BackgroundTasks, db=Depends(get_db)):
     repo = TaskRepository(db)
     task = repo.get(task_id)
 
     if not task:
         raise HTTPException(status_code=404, detail="Not found")
-    if task.state != TaskState.ready:
+    if task.state not in {TaskState.ready, TaskState.failed}:
         raise HTTPException(status_code=400, detail=f"Task not ready to run (current state: {task.state})")
 
     repo.update_state(
@@ -189,4 +189,25 @@ def delete_task(task_id: int, db=Depends(get_db)):
 
     repo.delete(task_id)
     db.commit()
+    return {"ok": True}
+
+
+@router.post("/clips/{clip_id}/regenerate")
+def regenerate_clip(clip_id: int, body: RegenerateVideoRequest, background_tasks: BackgroundTasks, db=Depends(get_db)):
+    stmt = select(Clip).where(Clip.id == clip_id)
+    clip = db.scalars(stmt).first()
+    if not clip:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    clip.aesthetics = body.aesthetics
+    clip.camera_movement = body.camera_movement
+    clip.script_description = body.script_description
+    db.commit()
+    db.refresh(clip)
+
+    prompt = f"{clip.script_description}. {clip.aesthetics}. {clip.camera_movement}."
+
+    destination_folder = get_directories().media / str(clip.track.task_id) / f"clip_{clip.clip_index + 1}"
+    background_tasks.add_task(run_and_poll_scene_task, task_id=clip.track.task_id, clip_id=clip_id, scene_number=clip.clip_index, prompt=prompt, duration_seconds=clip.duration_seconds, destination_folder=destination_folder)
+
     return {"ok": True}

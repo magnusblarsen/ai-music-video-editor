@@ -16,5 +16,11 @@ class TaskRecord(BaseModel):
     updated_at: datetime
 
 
-class GenerateVideoRequest(BaseModel):
+class GenerateVideosRequest(BaseModel):
     additional_prompt: str
+
+
+class RegenerateVideoRequest(BaseModel):
+    aesthetics: str
+    camera_movement: str
+    script_description: str

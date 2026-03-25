@@ -9,6 +9,7 @@ services:
     volumes:
       - ./api:/app
       - ~/.ssh/id_rsa:/run/secrets/id_rsa:ro
+      - ~/.ssh/id_ecdsa:/run/secrets/id_ecdsa:ro
       - ~/.ssh/known_hosts:/run/secrets/known_hosts:ro
     env_file:
       - ./api/.env
