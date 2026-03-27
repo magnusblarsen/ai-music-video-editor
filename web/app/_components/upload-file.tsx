@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent } from "@mui/material";
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Box } from "@mui/material";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -109,12 +109,14 @@ export default function UploadFile({ file, setFileAction, jobStatus, onProjectSe
           ))}
         </Select>
       </FormControl>
-      <Button variant="contained" onClick={() => setOpen(true)}>
-        Create new project
-      </Button>
-      <Button variant="outlined" color="error" onClick={() => deleteMutation.mutate(chosenTask!.id)}>
-        Delete project
-      </Button>
+      <Box sx={{ display: "flex", gap: 2 }}>
+        <Button variant="contained" onClick={() => setOpen(true)}>
+          Create new project
+        </Button>
+        <Button variant="outlined" color="error" onClick={() => deleteMutation.mutate(chosenTask!.id)}>
+          Delete project
+        </Button>
+      </Box>
       <Dialog open={open} onClose={() => setOpen(false)}>
         <DialogTitle>Upload audio file to make new project</DialogTitle>
         <DialogContent>
@@ -139,7 +141,7 @@ export default function UploadFile({ file, setFileAction, jobStatus, onProjectSe
 
       </Dialog>
       {jobStatus && (
-        <Typography variant="body1" color={jobStatus.state === "failed" ? "error" : "textPrimary"} gutterBottom>
+        <Typography variant="body1" color={jobStatus.state === "failed" ? "error" : "textPrimary"}>
           Status: {stateToLabel[jobStatus.state]}
         </Typography>
       )}

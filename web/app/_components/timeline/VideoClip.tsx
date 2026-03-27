@@ -1,6 +1,9 @@
 import { Clip } from "@/types";
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from "@mui/material";
+import { useMutation } from "@tanstack/react-query";
+import axios from "axios";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 
 type Props = {
@@ -71,6 +74,17 @@ export default function VideoClip({ pxPerSecond, clip, index }: Props) {
   };
 
 
+  const generateSceneMutation = useMutation({
+    mutationFn: () => {
+      return axios.post(`/api/clips/${clip.id}/regenerate`, sceneData);
+    },
+    onError: (err) => {
+      toast.error(`Failed: ${err.message}`);
+    },
+    onSuccess: () => {
+      toast.success("Scene generation started");
+    }
+  })
 
 
   return (
@@ -127,7 +141,7 @@ export default function VideoClip({ pxPerSecond, clip, index }: Props) {
             />
           </DialogContent>
         </Box>
-        <Button variant="contained" disabled={!changed} className="m-2">Generate scene</Button>
+        <Button variant="contained" disabled={!changed} className="m-2" onClick={() => generateSceneMutation.mutate()}>Generate scene</Button>
       </Dialog>
       <Dialog open={confirmCloseOpen} onClose={cancelClose}>
         <DialogTitle>Discard changes?</DialogTitle>

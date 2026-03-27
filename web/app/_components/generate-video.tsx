@@ -42,7 +42,7 @@ export default function GenerateVideo({ taskId, jobStatus }: Props) {
       <TextField
         label="Additional prompt (optional)"
         multiline
-        rows={4}
+        rows={2}
         value={text}
         onChange={(e) => setText(e.target.value)}
         fullWidth

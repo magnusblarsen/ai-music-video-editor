@@ -22,5 +22,5 @@ class GenerateVideosRequest(BaseModel):
 
 class RegenerateVideoRequest(BaseModel):
     aesthetics: str
-    camera_movement: str
-    script_description: str
+    cameraMovement: str
+    scriptDescription: str

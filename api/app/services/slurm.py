@@ -5,8 +5,7 @@ from app.db import SessionLocal
 from app.repositories.task_repository import TaskRepository
 from app.models import Clip, Track
 import logging
-from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, ColorClip
-
+from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, ColorClip, concatenate_videoclips
 from app.models import TaskState
 
 import asyncio
@@ -59,28 +58,38 @@ async def run_and_poll_task(task_id: int, additional_prompt: str) -> None:
     await poll_and_store_videos(task_id)
 
 
-async def run_and_poll_scene_task(task_id: str, clip_id: str, scene_number: int, prompt: str, duration_seconds: float, destination_folder: Path) -> None:
+async def run_and_poll_scene_task(task_id: str, clip_id: str, scene_number: int, prompt: str, duration_seconds: float) -> None:
     settings = get_hpc_config()
     directories = get_directories()
 
-    job_id = await run_scene_job(task_id=task_id, scene_number=scene_number, prompt=prompt, duration_seconds=duration_seconds, destination_folder=destination_folder)
-    await wait_for_slurm_completion(job_id=job_id)
+    # slurm_destination = Path(directories.hpc_base) / "Music-Visualization-Generation-Pipeline" / \
+    #     "intermediate_files" / \
+    #     f"test_run_{task_id}" / f"scene_{scene_number}.mp4"
+    file_name = f"scene_{scene_number}.mp4"
+    slurm_destination = Path(directories.hpc_base) / "Music-Visualization-Generation-Pipeline" / \
+        "intermediate_files" / \
+        f"test_run_{task_id}"
+    slurm_file = slurm_destination / file_name
 
-    remote_file = Path(directories.hpc_base) / "Music-Visualization-Generation-Pipeline" / destination_folder / f"scene_{scene_number}.mp4"
+    job_id = await run_scene_job(task_id=task_id, scene_number=scene_number, prompt=prompt, duration_seconds=duration_seconds, slurm_destination=slurm_destination)
+    await wait_for_slurm_completion(job_id=job_id, poll_interval_seconds=60.0 * 10)
 
-    file_name = remote_file.name
     local_file = Path(directories.media) / str(task_id) / file_name
 
     async with HpcClient(settings) as client:
-        await client.sftp_get(str(remote_file), str(local_file))  # TODO: make sure it overwrites
+        # TODO: make sure it overwrites
+        await client.sftp_get(str(slurm_file), str(local_file))
 
     with SessionLocal() as db:
-        clips = db.query(Clip).join(Track).filter(Track.task_id == task_id).all()
+        clips = db.query(Clip).join(Track).filter(
+            Track.task_id == task_id).all()
 
         compose_videos_on_timeline(
             clips=clips,
             audio_path=str(Path(directories.media) / f"{task_id}.mp3"),
-            output_path=str(Path(directories.media) / str(task_id) / "final_video.mp4"),
+            output_path=str(Path(directories.media)
+                            / str(task_id) / "final_video.mp4"),
+            task_id=task_id
         )
 
 
@@ -107,7 +116,8 @@ async def run_full_video_job(task_id: int, additional_prompt: str) -> None:
                 None,
             )
             if not audio_file:
-                raise FileNotFoundError("No audio file found in remote directory")
+                raise FileNotFoundError(
+                    "No audio file found in remote directory")
 
             remote_audio_path = f"{remote_dir}/{audio_file.strip()}"
             job_contents = full_video_job_script(
@@ -139,13 +149,14 @@ async def run_full_video_job(task_id: int, additional_prompt: str) -> None:
                 error=str(e),
             )
         except Exception:
-            logger.exception("Failed to persist failed state for task %s", task_id)
+            logger.exception(
+                "Failed to persist failed state for task %s", task_id)
         raise
     finally:
         db.close()
 
 
-async def run_scene_job(task_id: int, scene_number: int, prompt: str, duration_seconds: float, destination_folder: Path) -> str:
+async def run_scene_job(task_id: int, scene_number: int, prompt: str, duration_seconds: float, slurm_destination: Path) -> str:
     directories = get_directories()
     settings = get_hpc_config()
     db = SessionLocal()
@@ -162,7 +173,7 @@ async def run_scene_job(task_id: int, scene_number: int, prompt: str, duration_s
                 scene_number=scene_number,
                 prompt=prompt,
                 duration_seconds=duration_seconds,
-                destination_folder=destination_folder,
+                destination_folder=slurm_destination,
             )
             await client.sftp_put_text(job_contents, remote_job_script)
 
@@ -189,7 +200,8 @@ async def run_scene_job(task_id: int, scene_number: int, prompt: str, duration_s
                 error=str(e),
             )
         except Exception:
-            logger.exception("Failed to persist failed state for task %s", task_id)
+            logger.exception(
+                "Failed to persist failed state for task %s", task_id)
         raise
     finally:
         db.close()
@@ -316,9 +328,9 @@ conda activate /home/brml/DGX1/mycondas/gpu312
 
 cd /home/brml/Music-Visualization-Generation-Pipeline
 
-echo "Running pipeline_runner.py with variables: scene_number=$SCENE_NUMBER, prompt=$PROMPT, duration_seconds=$DURATION_SECONDS, destination_folder=$DESTINATION_FOLDER"
+echo "Running generate_video_cli.py with variables: scene_number=$SCENE_NUMBER, prompt=$PROMPT, duration_seconds=$DURATION_SECONDS, destination_folder=$DESTINATION_FOLDER"
 
-python src/pipeline_runner.py "$SCENE_NUMBER" "$PROMPT" "$DURATION_SECONDS" "$DESTINATION_FOLDER"
+python src/generate_video_cli.py "$SCENE_NUMBER" "$PROMPT" "$DURATION_SECONDS" "$DESTINATION_FOLDER"
 """
 
 
@@ -329,7 +341,8 @@ async def poll_video_segments(
 ) -> None:
     settings = get_hpc_config()
     directories = get_directories()
-    result_file = directories.hpc_base / "Music-Visualization-Generation-Pipeline" / "outputs" / f"test_run_{str(task_id)}" / "segments.json"
+    result_file = directories.hpc_base / "Music-Visualization-Generation-Pipeline" / \
+        "outputs" / f"test_run_{str(task_id)}" / "segments.json"
 
     try:
         file_contents = await _wait_for_remote_file(
@@ -420,15 +433,18 @@ async def _wait_for_remote_file(
             exists = (await client.run(f"test -f {quoted_path} && echo 1 || echo 0")).strip()
 
             if exists == "1":
-                logger.info(f"Remote file found: {remote_result_file} (elapsed: {elapsed:.1f}s)")
+                logger.info(f"Remote file found: {
+                            remote_result_file} (elapsed: {elapsed:.1f}s)")
                 return await client.run(f"cat {quoted_path}")
 
-            logger.info(f"Remote file not found yet: {remote_result_file} (elapsed: {elapsed:.1f}s)")
+            logger.info(f"Remote file not found yet: {
+                        remote_result_file} (elapsed: {elapsed:.1f}s)")
             await asyncio.sleep(poll_interval_seconds)
             elapsed += poll_interval_seconds
 
     raise TimeoutError(
-        f"Remote file not found after {timeout_seconds} seconds: {remote_result_file}"
+        f"Remote file not found after {
+            timeout_seconds} seconds: {remote_result_file}"
     )
 
 
@@ -445,7 +461,8 @@ async def wait_for_slurm_completion(
 
     async with HpcClient(settings) as client:
         while elapsed < timeout_seconds:
-            cmd = (f"sacct -j {shlex.quote(job_id)} --format=JobIDRaw,State --parsable2 --noheader")
+            cmd = (f"sacct -j {shlex.quote(job_id)
+                               } --format=JobIDRaw,State --parsable2 --noheader")
 
             output = (await client.run(cmd)).strip().upper()
 
@@ -466,7 +483,8 @@ async def wait_for_slurm_completion(
                 return
 
             if state in terminal_failure:
-                raise RuntimeError(f"Slurm job ended in failure state: {state}")
+                raise RuntimeError(
+                    f"Slurm job ended in failure state: {state}")
 
             await asyncio.sleep(poll_interval_seconds)
             elapsed += poll_interval_seconds
@@ -509,7 +527,8 @@ async def poll_and_store_videos(task_id: int) -> None:
                 clip_index = item["index"]
 
                 # remote_file = remote_output_dir / f"scene-{clip_index + 1}.mp4"
-                remote_file = Path(directories.hpc_base) / "Music-Visualization-Generation-Pipeline" / item["video_path"]
+                remote_file = Path(
+                    directories.hpc_base) / "Music-Visualization-Generation-Pipeline" / item["video_path"]
 
                 # file_name = f"clip_{clip_index + 1}.mp4"
                 file_name = remote_file.name
@@ -517,7 +536,8 @@ async def poll_and_store_videos(task_id: int) -> None:
                 local_file = local_media_dir / file_name
                 video_paths.append(str(local_file))
 
-                logger.info("Downloading video for clip_index=%s from %s to %s", clip_index, remote_file, local_file)
+                logger.info("Downloading video for clip_index=%s from %s to %s",
+                            clip_index, remote_file, local_file)
                 await client.sftp_get(str(remote_file), str(local_file))
 
                 with SessionLocal() as db:
@@ -528,13 +548,15 @@ async def poll_and_store_videos(task_id: int) -> None:
                         .one_or_none()
                     )
                     if clip is None:
-                        logger.warning("No clip found for task=%s clip_index=%s", task_id, clip_index)
+                        logger.warning(
+                            "No clip found for task=%s clip_index=%s", task_id, clip_index)
                         continue
 
                     clip.url = str(local_file)
                     db.commit()
 
-        audio_path = str(Path(directories.hpc_base) / "uploads" / f"{task_id}" / "input.mp3")
+        audio_path = str(Path(directories.media)
+                         / "uploads" / f"{task_id}.mp3")
 
         with SessionLocal() as db:
             clips = (
@@ -544,7 +566,8 @@ async def poll_and_store_videos(task_id: int) -> None:
                 .order_by(Clip.clip_index)
                 .all()
             )
-            compose_videos_on_timeline(clips=clips, audio_path=audio_path, output_path=str(local_media_dir / "final_video.mp4"))
+            compose_videos_on_timeline(clips=clips, audio_path=audio_path, output_path=str(
+                local_media_dir / "final_video.mp4"), task_id=task_id)
 
         _set_task_state(
             task_id,
@@ -585,6 +608,7 @@ def compose_videos_on_timeline(
     clips: list[Clip],
     audio_path: str,
     output_path: str,
+    task_id: int,
 ) -> str:
     ordered_clips = sorted(
         [c for c in clips if c.url],
@@ -603,7 +627,9 @@ def compose_videos_on_timeline(
         source_clips.append(first_source)
 
         base_size = first_source.size
-        first_usable_duration = min(first_db_clip.duration_seconds, first_source.duration)  # Error if duration_seconds is lower than video
+        # Error if duration_seconds is lower than video
+        first_usable_duration = min(
+            first_db_clip.duration_seconds, first_source.duration)
 
         first_timeline_clip = (
             first_source
@@ -655,6 +681,13 @@ def compose_videos_on_timeline(
             output_path,
             codec="libx264",
             audio_codec="aac",
+        )
+
+        _set_task_state(
+            task_id,
+            state=TaskState.done,
+            message="Videos downloaded and clip URLs updated",
+            progress=100,
         )
 
         return output_path

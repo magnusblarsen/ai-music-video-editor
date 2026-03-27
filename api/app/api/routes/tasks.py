@@ -27,7 +27,8 @@ async def get_tasks(db=Depends(get_db)):
 @router.post("/upload-audio")
 async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[UploadFile, File()], db=Depends(get_db)):
     if not file.content_type or not file.content_type.startswith("audio/"):
-        raise HTTPException(status_code=400, detail=f"Expected audio/*, got {file.content_type}")
+        raise HTTPException(
+            status_code=400, detail=f"Expected audio/*, got {file.content_type}")
 
     directories = get_directories()
 
@@ -58,7 +59,8 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to save file: {str(e)}")
     finally:
         await file.close()
 
@@ -82,7 +84,8 @@ async def run_task(task_id: str, body: GenerateVideosRequest, background_tasks: 
     if not task:
         raise HTTPException(status_code=404, detail="Not found")
     if task.state not in {TaskState.ready, TaskState.failed}:
-        raise HTTPException(status_code=400, detail=f"Task not ready to run (current state: {task.state})")
+        raise HTTPException(
+            status_code=400, detail=f"Task not ready to run (current state: {task.state})")
 
     repo.update_state(
         task_id,
@@ -92,7 +95,8 @@ async def run_task(task_id: str, body: GenerateVideosRequest, background_tasks: 
     )
     db.commit()
 
-    background_tasks.add_task(run_and_poll_task, task_id=task_id, additional_prompt=body.additional_prompt)
+    background_tasks.add_task(
+        run_and_poll_task, task_id=task_id, additional_prompt=body.additional_prompt)
 
     return {"ok": True, "task_id": task_id}
 
@@ -103,7 +107,8 @@ async def start_polling(task_id: int, background_tasks: BackgroundTasks, db=Depe
     task = repo.get(task_id)
 
     if task.state not in {TaskState.running, TaskState.failed}:
-        raise HTTPException(status_code=400, detail=f"Task not running (current state: {task.state})")
+        raise HTTPException(
+            status_code=400, detail=f"Task not running (current state: {task.state})")
 
     stmt = (
         select(Track)
@@ -113,7 +118,8 @@ async def start_polling(task_id: int, background_tasks: BackgroundTasks, db=Depe
 
     tracks = db.scalars(stmt).all()
     if tracks:
-        raise HTTPException(status_code=400, detail="Tracks already exist for this task")
+        raise HTTPException(
+            status_code=400, detail="Tracks already exist for this task")
     if not task:
         raise HTTPException(status_code=404, detail="Not found")
 
@@ -149,7 +155,8 @@ async def poll_videos(task_id: int, background_tasks: BackgroundTasks, db=Depend
     if not task:
         raise HTTPException(status_code=404, detail="Not found")
     if task.state not in {TaskState.videos_segmented, TaskState.failed, TaskState.done}:
-        raise HTTPException(status_code=400, detail=f"Task not ready to poll videos (current state: {task.state})")
+        raise HTTPException(
+            status_code=400, detail=f"Task not ready to poll videos (current state: {task.state})")
 
     background_tasks.add_task(poll_and_store_videos, task_id=task_id)
 
@@ -157,7 +164,7 @@ async def poll_videos(task_id: int, background_tasks: BackgroundTasks, db=Depend
 
 
 @router.post("/tasks/{task_id}/concat")
-def concat_videos(task_id: int, db=Depends(get_db)):
+def concat_videos(task_id: int, background_tasks: BackgroundTasks, db=Depends(get_db)):
     repo = TaskRepository(db)
     task = repo.get(task_id)
     if not task:
@@ -175,9 +182,10 @@ def concat_videos(task_id: int, db=Depends(get_db)):
 
     audio_path = get_directories().media / f"{task_id}.mp3"
 
-    # output = concatenate_videos(clips, output_path=output_path)
-    output = compose_videos_on_timeline(clips, audio_path=audio_path, output_path=output_path)
-    return {"output": output}
+    background_tasks.add_task(compose_videos_on_timeline, clips,
+                              audio_path=audio_path, output_path=output_path, task_id=task_id)
+
+    return {}
 
 
 @router.delete("/tasks/{task_id}")
@@ -200,14 +208,15 @@ def regenerate_clip(clip_id: int, body: RegenerateVideoRequest, background_tasks
         raise HTTPException(status_code=404, detail="Not found")
 
     clip.aesthetics = body.aesthetics
-    clip.camera_movement = body.camera_movement
-    clip.script_description = body.script_description
+    clip.camera_movement = body.cameraMovement
+    clip.script_description = body.scriptDescription
     db.commit()
     db.refresh(clip)
 
-    prompt = f"{clip.script_description}. {clip.aesthetics}. {clip.camera_movement}."
+    prompt = f"{clip.script_description}. {
+        clip.aesthetics}. {clip.camera_movement}."
 
-    destination_folder = get_directories().media / str(clip.track.task_id) / f"clip_{clip.clip_index + 1}"
-    background_tasks.add_task(run_and_poll_scene_task, task_id=clip.track.task_id, clip_id=clip_id, scene_number=clip.clip_index, prompt=prompt, duration_seconds=clip.duration_seconds, destination_folder=destination_folder)
+    background_tasks.add_task(run_and_poll_scene_task, task_id=clip.track.task_id, clip_id=clip_id,
+                              scene_number=clip.clip_index + 1, prompt=prompt, duration_seconds=clip.duration_seconds)
 
     return {"ok": True}

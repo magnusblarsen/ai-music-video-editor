@@ -41,7 +41,7 @@ export default function HomeClient() {
 
       const status = query.state.data?.state;
 
-      if (!status) return 5000;
+      if (!status) return 1000 * 60;
 
       return ["done", "failed"].includes(status) ? false : 5000;
     },
@@ -78,7 +78,7 @@ export default function HomeClient() {
   }
 
   return (
-    <Box sx={{ height: '100vh', display: "flex", flexDirection: "column" }}>
+    <Box sx={{ display: "flex", flexDirection: "column", justifyContent: 'space-between', minHeight: "100vh" }} >
       {/* <Box sx={{ height: '70%', display: "flex", flexDirection: "row", minHeight: 0 }} > */}
       <Box sx={{ display: "flex", flexDirection: "row", minHeight: 0 }} >
         <Box className="flex-1 min-w-0 min-h-0 p-2">
@@ -105,16 +105,18 @@ export default function HomeClient() {
           />
         </Box>
       </Box>
-      <Timeline
-        tracks={tracks}
-        time={time}
-        seekToAction={seekTo}
-        playAction={play}
-        pauseAction={pause}
-        durationSec={duration || undefined}
-        audioSrc={audioSrc}
-        isPlaying={isPlaying}
-      />
+      <Box sx={{ mb: 2 }}>
+        <Timeline
+          tracks={tracks}
+          time={time}
+          seekToAction={seekTo}
+          playAction={play}
+          pauseAction={pause}
+          durationSec={duration || undefined}
+          audioSrc={audioSrc}
+          isPlaying={isPlaying}
+        />
+      </Box>
     </Box>
   )
 
