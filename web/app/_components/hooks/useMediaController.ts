@@ -22,17 +22,13 @@ export function useMediaController(opts: MediaControllerOptions = {}) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [time, setTime] = useState(0);
-  const timeRef = useRef(0);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState<number | null>(null);
 
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
-  const hasExternalAudio = !!audioSrc;
 
   const rafIdRef = useRef<number | null>(null);
-
-  const pendingAudioSeekRef = useRef<number | null>(null);
 
   const stopRaf = useCallback(() => {
     if (rafIdRef.current != null) {
@@ -42,42 +38,42 @@ export function useMediaController(opts: MediaControllerOptions = {}) {
   }, []);
 
   const setUiTimeThrottled = useRef({ last: 0 });
+  const tickRef = useRef<(ts: number) => void>(() => { })
+
   const tick = useCallback(
     (ts: number) => {
       const v = videoRef.current;
       const a = audioRef.current;
+      const source = v ?? a;
 
-      if (v) {
-        timeRef.current = v.currentTime;
-
+      if (source) {
         const minDt = 1000 / uiFps;
         if (ts - setUiTimeThrottled.current.last >= minDt) {
           setUiTimeThrottled.current.last = ts;
-          setTime(v.currentTime);
+          setTime(source.currentTime);
         }
       }
 
       // handle drift
-      if (v && a && hasExternalAudio && !v.paused && !a.paused) {
-        const diff = a.currentTime - v.currentTime;
+      if (v && a && !v.paused && !a.paused) {
+        const diff = v.currentTime - a.currentTime;
 
         if (Math.abs(diff) > driftSnapThresholdSec) {
           try {
-            a.currentTime = v.currentTime;
+            v.currentTime = a.currentTime;
           } catch { }
-          a.playbackRate = v.playbackRate;
+          v.playbackRate = a.playbackRate;
         } else if (Math.abs(diff) > driftNudgeThresholdSec) {
           const direction = diff > 0 ? -1 : 1;
-          a.playbackRate = v.playbackRate + direction * driftNudgeAmount;
+          v.playbackRate = a.playbackRate + direction * driftNudgeAmount;
         } else {
-          a.playbackRate = v.playbackRate;
+          v.playbackRate = a.playbackRate;
         }
       }
 
-      rafIdRef.current = requestAnimationFrame(tick);
+      rafIdRef.current = requestAnimationFrame(tickRef.current);
     },
     [
-      hasExternalAudio,
       driftSnapThresholdSec,
       driftNudgeThresholdSec,
       driftNudgeAmount,
@@ -85,189 +81,102 @@ export function useMediaController(opts: MediaControllerOptions = {}) {
     ]
   );
 
+  useEffect(() => {
+    tickRef.current = tick;
+  }, [tick])
+
   const ensureRaf = useCallback(() => {
     if (rafIdRef.current == null) {
       rafIdRef.current = requestAnimationFrame(tick);
     }
   }, [tick]);
 
-  const trySetAudioTime = useCallback((t: number) => {
-    const a = audioRef.current;
-    if (!a) return;
 
-    try {
-      a.currentTime = t;
-      pendingAudioSeekRef.current = null;
-    } catch {
-      console.log("Audio seek failed")
-      pendingAudioSeekRef.current = t;
+  const play = useCallback(async () => {
+    const a = audioRef.current;
+    const v = videoRef.current;
+
+    await a?.play().catch(console.error);
+    if (v) {
+      v.muted = true;
+      v.currentTime = a?.currentTime ?? 0;
+      await v.play().catch(console.error);
     }
   }, []);
 
-  const syncAudioToVideo = useCallback(() => {
-    const v = videoRef.current;
-    const a = audioRef.current;
-    if (!v || !a || !hasExternalAudio) return;
-
-    trySetAudioTime(v.currentTime);
-    a.playbackRate = v.playbackRate;
-  }, [hasExternalAudio, trySetAudioTime]);
-
-  const play = useCallback(async () => {
-    const v = videoRef.current;
-    const a = audioRef.current;
-    if (!v) return;
-
-    // You never want video audio
-    v.muted = true;
-    v.volume = 0;
-
-    if (hasExternalAudio && a) {
-      syncAudioToVideo();
-    }
-
-    try {
-      await v.play();
-
-      if (hasExternalAudio && a) {
-        try {
-          await a.play();
-        } catch {
-          // Autoplay restrictions can block audio until user gesture
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, [hasExternalAudio, syncAudioToVideo]);
 
   const pause = useCallback(() => {
     const v = videoRef.current;
     const a = audioRef.current;
 
+    a?.pause();
     v?.pause();
-    if (hasExternalAudio) {
-      a?.pause();
-      if (v && a) a.playbackRate = v.playbackRate; // reset any nudge
-    }
 
-    // force UI time update on pause
-    if (v) setTime(v.currentTime);
-  }, [hasExternalAudio]);
+    if (a) setTime(a.currentTime);
+  }, [])
+
 
   const seekTo = useCallback(
     (seconds: number) => {
       const v = videoRef.current;
       const a = audioRef.current;
-      if (!v) return;
+      if (!a) return;
 
       const t = Math.max(0, seconds);
-      v.currentTime = t;
-      timeRef.current = t;
+
+      a.currentTime = t;
       setTime(t);
 
-      if (hasExternalAudio && a) {
-        trySetAudioTime(t);
+      if (v) {
+        v.currentTime = t;
       }
+
     },
-    [hasExternalAudio, trySetAudioTime]
+    []
   );
 
   useEffect(() => {
-    const v = videoRef.current;
     const a = audioRef.current;
-    if (!v) return;
-
-    // Set “never play video audio” once when we have the element
-    v.muted = true;
-    v.volume = 0;
-
-    const onLoadedMetadata = () => {
-      setTime(v.currentTime);
-      timeRef.current = v.currentTime;
-    };
+    if (!a) return;
 
     const onPlay = () => {
-      setIsPlaying(true);
-      ensureRaf();
-      if (hasExternalAudio) syncAudioToVideo();
-    };
+      setIsPlaying(true)
+      ensureRaf()
+    }
 
     const onPause = () => {
-      setIsPlaying(false);
-      stopRaf();
-      setTime(v.currentTime);
-    };
+      setIsPlaying(false)
+      stopRaf()
+      setTime(a.currentTime)
+    }
 
     const onEnded = () => {
-      setIsPlaying(false);
-      stopRaf();
-      if (hasExternalAudio && a) {
-        a.pause();
-        a.playbackRate = v.playbackRate;
-      }
-      setTime(v.currentTime);
+      setIsPlaying(false)
+      stopRaf()
+    }
+    const onMeta = () => {
+      if (Number.isFinite(a.duration) && a.duration > 0) setDuration(a.duration);
     };
 
-    const onSeeking = () => {
-      // while scrubbing via native video controls
-      if (hasExternalAudio) syncAudioToVideo();
-      setTime(v.currentTime);
-    };
-
-    const onSeeked = () => {
-      if (hasExternalAudio) syncAudioToVideo();
-      setTime(v.currentTime);
-    };
-
-    const onRateChange = () => {
-      if (hasExternalAudio) syncAudioToVideo();
-    };
-
-    v.addEventListener("loadedmetadata", onLoadedMetadata);
-    v.addEventListener("play", onPlay);
-    v.addEventListener("pause", onPause);
-    v.addEventListener("ended", onEnded);
-    v.addEventListener("seeking", onSeeking);
-    v.addEventListener("seeked", onSeeked);
-    v.addEventListener("ratechange", onRateChange);
-
-    const onAudioLoadedMetadata = () => {
-      const pending = pendingAudioSeekRef.current;
-      if (pending != null) trySetAudioTime(pending);
-
-      if (a && Number.isFinite(a.duration) && a.duration > 0) setDuration(a.duration);
-    };
-    a?.addEventListener("loadedmetadata", onAudioLoadedMetadata);
+    a.addEventListener("play", onPlay);
+    a.addEventListener("pause", onPause);
+    a.addEventListener("ended", onEnded);
+    a.addEventListener("loadedmetadata", onMeta);
 
     return () => {
-      v.removeEventListener("loadedmetadata", onLoadedMetadata);
-      v.removeEventListener("play", onPlay);
-      v.removeEventListener("pause", onPause);
-      v.removeEventListener("ended", onEnded);
-      v.removeEventListener("seeking", onSeeking);
-      v.removeEventListener("seeked", onSeeked);
-      v.removeEventListener("ratechange", onRateChange);
-
-      a?.removeEventListener("loadedmetadata", onAudioLoadedMetadata);
-      stopRaf();
+      a.removeEventListener("play", onPlay);
+      a.removeEventListener("pause", onPause);
+      a.removeEventListener("ended", onEnded);
+      a.removeEventListener("loadedmetadata", onMeta);
     };
-  }, [ensureRaf, stopRaf, hasExternalAudio, syncAudioToVideo, trySetAudioTime]);
+  }, [ensureRaf, stopRaf, audioSrc]);
 
-  // If audioSrc changes while playing, start it in sync
   useEffect(() => {
     const v = videoRef.current;
-    const a = audioRef.current;
     if (!v) return;
-
     v.muted = true;
-    v.volume = 0;
+  }, []);
 
-    if (hasExternalAudio && a && !v.paused) {
-      syncAudioToVideo();
-      a.play().catch(() => { });
-    }
-  }, [hasExternalAudio, syncAudioToVideo]);
 
   return {
     videoRef,

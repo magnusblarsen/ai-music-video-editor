@@ -6,11 +6,15 @@ export default function Ruler({
   pxPerSecond,
   majorStepSec,
   minorStepSec,
+  cutMarkers = [],
+  onMarkerClick,
 }: {
   durationSec: number;
   pxPerSecond: number;
   majorStepSec: number;
   minorStepSec: number;
+  cutMarkers?: number[];
+  onMarkerClick: (timeSec: number) => void;
 }) {
   const ticks: Array<{ x: number; isMajor: boolean; label?: string }> = [];
 
@@ -26,8 +30,34 @@ export default function Ruler({
     });
   }
 
+
+
+  const cutMarkerWidth = 15
+
   return (
     <Box sx={{ position: "absolute", inset: 0 }}>
+      {cutMarkers.map((marker) => (
+        <Box
+          key={marker}
+          sx={{
+            position: "absolute",
+            zIndex: 1,
+            left: (marker * pxPerSecond) - (cutMarkerWidth / 2),
+            top: 0,
+            width: 0,
+            height: 0,
+            borderLeft: `${cutMarkerWidth / 2}px solid transparent`,
+            borderRight: `${cutMarkerWidth / 2}px solid transparent`,
+            borderTop: `${cutMarkerWidth}px solid`,
+            borderTopColor: "warning.main",
+            cursor: "pointer",
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onMarkerClick(marker);
+          }}
+        />
+      ))}
       {ticks.map((tick, idx) => {
         if (idx === ticks.length - 1) {
           return null; // avoid overflow

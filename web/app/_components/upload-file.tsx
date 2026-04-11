@@ -40,20 +40,13 @@ export default function UploadFile({ file, setFileAction, jobStatus, onProjectSe
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
+      setOpen(false);
       const form = new FormData();
       form.append("file", file);
 
-      const res = await fetch("/api/upload-audio", {
-        method: "POST",
-        body: form
-      });
+      const { data } = await axios.post("/api/upload-audio", form)
 
-      const data = await res.json().catch(() => { });
-
-      if (!res.ok) {
-        throw new Error(data?.error || `Upload failed with status ${res.status}`);
-      }
-      return data;
+      return data
     },
     onMutate: () => {
       toast.info("Starting upload...");
@@ -65,6 +58,7 @@ export default function UploadFile({ file, setFileAction, jobStatus, onProjectSe
       queryClient.invalidateQueries({
         queryKey: ["tasks"],
       })
+      toast.success("Upload successful! Task created with ID: " + data.task_id);
     },
     onError: (error) => {
       toast.error(`Upload failed: ${error.message}`);

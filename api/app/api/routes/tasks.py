@@ -42,7 +42,6 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
     try:
         with local_path.open("wb") as out:
             print("Saving file to:", local_path)
-            print("Resolved path:", local_path.resolve())
             while True:
                 chunk = await file.read(1024 * 1024)  # 1MB
                 if not chunk:

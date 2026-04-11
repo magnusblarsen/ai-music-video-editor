@@ -12,8 +12,6 @@ type WaveformTrackProps = {
 
 
 
-
-
 export default function WaveformTrack({ src, height, width }: WaveformTrackProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [samples, setSamples] = useState<Float32Array | null>(null); // PCM data
@@ -30,7 +28,7 @@ export default function WaveformTrack({ src, height, width }: WaveformTrackProps
 
       if (cancelled) return;
 
-      // first channel (left)
+      // first channel: left
       const raw = audioBuffer.getChannelData(0);
 
       setSamples(raw);

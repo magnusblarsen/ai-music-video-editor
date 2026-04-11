@@ -26,12 +26,13 @@ type TimelineProps = {
 export default function Timeline({ time, seekToAction, playAction, pauseAction, isPlaying, durationSec = 120, tracks, audioSrc }: TimelineProps) {
   const rulerHeight = 30
   const trackHeight = 50
-  const playHeadTopHeight = 13 // rulerHeight / 2
+  const playHeadTopHeight = 14 // rulerHeight / 2
 
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   const [pxPerSecond, setPxPerSecond] = useState(80)
   const [viewportWidth, setViewportWidth] = useState(0);
+  const [cutMarkers, setCutMarkers] = useState<number[]>([]);
 
 
   const minPxPerSecond = useMemo(() => {
@@ -41,6 +42,20 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
   const fitToView = () => {
     setPxPerSecond(minPxPerSecond);
     scrollRef.current?.scrollTo({ left: 0 })
+  }
+
+  const placeCutMarker = () => {
+    const minGap = 0.5
+    setCutMarkers((prev) => {
+      const alreadyExists = prev.some(m => Math.abs(m - time) < minGap);
+      if (alreadyExists) return prev;
+      return [...prev, time].sort((a, b) => a - b);
+    })
+  }
+
+  const removeCutMarker = (time: number) => {
+    const minGap = 0.5
+    setCutMarkers((prev) => prev.filter(m => Math.abs(m - time) >= minGap));
   }
 
   useEffect(() => {
@@ -171,6 +186,9 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
           <Button onClick={fitToView} variant="outlined" className="m-1">
             Zoom out
           </Button>
+          <Button variant="outlined" onClick={placeCutMarker} className="m-1">
+            Place cut marker
+          </Button>
         </Box>
 
         <Box className="flex p-0 m-0 items-end">
@@ -197,6 +215,8 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
               pxPerSecond={pxPerSecond}
               majorStepSec={majorStepSec}
               minorStepSec={minorStepSec}
+              cutMarkers={cutMarkers}
+              onMarkerClick={removeCutMarker}
             />
           </Box>
 
@@ -242,6 +262,22 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
               >
                 <VideoTrack clips={t.clips} height={trackHeight} width={totalWidth} pxPerSecond={pxPerSecond} />
               </Box>
+            ))}
+
+            {cutMarkers.map((marker) => (
+              <Box
+                key={marker}
+                sx={{
+                  position: "absolute",
+                  top: 0,
+                  left: timeToX(marker),
+                  height: "100%",
+                  width: 0,
+                  borderLeft: "2px dashed",
+                  borderColor: "error.main"
+                }}
+              />
+
             ))}
 
             <Box
