@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import TaskState
 
@@ -24,3 +24,12 @@ class RegenerateVideoRequest(BaseModel):
     aesthetics: str
     cameraMovement: str
     scriptDescription: str
+
+
+class CutMarkersUpdateRequest(BaseModel):
+    cut_markers: list[float] = Field(default_factory=list)
+
+
+class CutMarkersResponse(BaseModel):
+    task_id: int
+    cut_markers: list[float]

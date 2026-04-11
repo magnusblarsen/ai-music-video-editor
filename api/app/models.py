@@ -1,8 +1,9 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, Enum as SqlEnum, Integer, Text, func, ForeignKey, Float
+from sqlalchemy import DateTime, Enum as SqlEnum, Integer, Text, func, ForeignKey, Float, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.ext.mutable import MutableList
 
 
 from app.db import Base
@@ -50,6 +51,12 @@ class TaskRecord(Base):
     )
 
     job_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    cut_markers: Mapped[list[float]] = mapped_column(
+        MutableList.as_mutable(JSON),
+        nullable=True,
+        default=list,
+    )
 
 
 class Track(Base):

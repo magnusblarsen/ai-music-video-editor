@@ -6,6 +6,10 @@ import { formatTimePrecise } from "@/utils/formatTime";
 import { Track } from "@/types/editor";
 import WaveformTrack from "./WaveformTrack";
 import VideoTrack from "./VideoTrack";
+import { useMutation } from "@tanstack/react-query";
+import axios from "axios";
+import { toast } from "sonner";
+import { useGetJson } from "@/hooks/useGetJson";
 
 
 function clamp(v: number, min: number, max: number) {
@@ -21,9 +25,11 @@ type TimelineProps = {
   durationSec?: number;
   tracks: Track[];
   audioSrc: string | null;
+  taskId: number | undefined;
+  cutMarkers: number[];
 }
 
-export default function Timeline({ time, seekToAction, playAction, pauseAction, isPlaying, durationSec = 120, tracks, audioSrc }: TimelineProps) {
+export default function Timeline({ time, seekToAction, playAction, pauseAction, isPlaying, durationSec = 120, tracks, audioSrc, taskId, cutMarkers: initialCutMarkers }: TimelineProps) {
   const rulerHeight = 30
   const trackHeight = 50
   const playHeadTopHeight = 14 // rulerHeight / 2
@@ -32,7 +38,8 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
 
   const [pxPerSecond, setPxPerSecond] = useState(80)
   const [viewportWidth, setViewportWidth] = useState(0);
-  const [cutMarkers, setCutMarkers] = useState<number[]>([]);
+  const [cutMarkers, setCutMarkers] = useState<number[]>(initialCutMarkers);
+  const [isDirty, setIsDirty] = useState(false);
 
 
   const minPxPerSecond = useMemo(() => {
@@ -45,6 +52,7 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
   }
 
   const placeCutMarker = () => {
+    setIsDirty(true);
     const minGap = 0.5
     setCutMarkers((prev) => {
       const alreadyExists = prev.some(m => Math.abs(m - time) < minGap);
@@ -54,6 +62,7 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
   }
 
   const removeCutMarker = (time: number) => {
+    setIsDirty(true);
     const minGap = 0.5
     setCutMarkers((prev) => prev.filter(m => Math.abs(m - time) >= minGap));
   }
@@ -173,6 +182,20 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
     scroller.scrollLeft += e.deltaX !== 0 ? e.deltaX : e.deltaY;
   };
 
+  const saveChangesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await axios.put(`/api/tasks/${taskId}/cut-markers`, { cut_markers: cutMarkers })
+      return response.data
+    },
+    onSuccess: () => {
+      setIsDirty(false);
+      toast.success("Changes saved successfully");
+    },
+    onError: (error) => {
+      toast.error(`Failed to save changes: ${error.message}`);
+    }
+  })
+
 
   return (
     <Box className="flex flex-col flex-1 min-h-0 px-2">
@@ -188,6 +211,9 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
           </Button>
           <Button variant="outlined" onClick={placeCutMarker} className="m-1">
             Place cut marker
+          </Button>
+          <Button variant="outlined" className="m-1" onClick={() => saveChangesMutation.mutate()} disabled={!isDirty}>
+            Save changes
           </Button>
         </Box>
 

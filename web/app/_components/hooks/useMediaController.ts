@@ -44,7 +44,7 @@ export function useMediaController(opts: MediaControllerOptions = {}) {
     (ts: number) => {
       const v = videoRef.current;
       const a = audioRef.current;
-      const source = v ?? a;
+      const source = a ?? v;
 
       if (source) {
         const minDt = 1000 / uiFps;
@@ -87,9 +87,9 @@ export function useMediaController(opts: MediaControllerOptions = {}) {
 
   const ensureRaf = useCallback(() => {
     if (rafIdRef.current == null) {
-      rafIdRef.current = requestAnimationFrame(tick);
+      rafIdRef.current = requestAnimationFrame(tickRef.current);
     }
-  }, [tick]);
+  }, []);
 
 
   const play = useCallback(async () => {
@@ -97,7 +97,8 @@ export function useMediaController(opts: MediaControllerOptions = {}) {
     const v = videoRef.current;
 
     await a?.play().catch(console.error);
-    if (v) {
+
+    if (v && v.readyState >= 2) { // HAVE_CURRENT_DATA
       v.muted = true;
       v.currentTime = a?.currentTime ?? 0;
       await v.play().catch(console.error);
@@ -138,6 +139,8 @@ export function useMediaController(opts: MediaControllerOptions = {}) {
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
+
+    setIsPlaying(!a.paused);
 
     const onPlay = () => {
       setIsPlaying(true)

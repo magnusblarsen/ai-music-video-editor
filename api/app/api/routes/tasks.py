@@ -10,12 +10,21 @@ from app.models import TaskState
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.schemas.track import TrackRead
-from app.schemas.task import GenerateVideosRequest, RegenerateVideoRequest
+from app.schemas.task import GenerateVideosRequest, RegenerateVideoRequest, CutMarkersUpdateRequest, CutMarkersResponse
 
 from app.models import Track, Clip
 
 
 router = APIRouter(tags=["tasks"])
+
+
+@router.get("/tasks/{task_id}")
+async def get_task(task_id: int, db=Depends(get_db)):
+    repo = TaskRepository(db)
+    task = repo.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Not found")
+    return task
 
 
 @router.get("/tasks")
@@ -219,3 +228,35 @@ def regenerate_clip(clip_id: int, body: RegenerateVideoRequest, background_tasks
                               scene_number=clip.clip_index + 1, prompt=prompt, duration_seconds=clip.duration_seconds)
 
     return {"ok": True}
+
+
+@router.get("/tasks/{task_id}/cut-markers", response_model=CutMarkersResponse)
+async def get_cut_markers(task_id: int, db=Depends(get_db)):
+    repo = TaskRepository(db)
+    task = repo.get(task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    return CutMarkersResponse(
+        task_id=task.id,
+        cut_markers=task.cut_markers or [],
+    )
+
+
+@router.put("/tasks/{task_id}/cut-markers", response_model=CutMarkersResponse)
+async def save_cut_markers(task_id: int, body: CutMarkersUpdateRequest, db=Depends(get_db)):
+    repo = TaskRepository(db)
+    task = repo.get(task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    task.cut_markers = body.cut_markers
+    db.commit()
+    db.refresh(task)
+
+    return CutMarkersResponse(
+        task_id=task.id,
+        cut_markers=task.cut_markers,
+    )

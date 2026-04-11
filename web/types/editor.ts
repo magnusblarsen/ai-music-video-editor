@@ -38,4 +38,5 @@ export type Task = {
   error?: string | null;
   created_at: string;
   updated_at: string;
+  cut_markers: number[];
 }

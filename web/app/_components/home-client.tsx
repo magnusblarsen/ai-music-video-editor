@@ -59,6 +59,14 @@ export default function HomeClient() {
     }
   );
 
+  const { data: task, isLoading: taskLoading, error: taskError } = useGetJson<Task>(
+    ["task", chosenTask?.id],
+    `/api/tasks/${chosenTask?.id}`,
+    undefined,
+    {
+      enabled: !!chosenTask?.id
+    }
+  );
 
   const tracks = editedTracks ?? fetchedTracks ?? []
 
@@ -107,6 +115,7 @@ export default function HomeClient() {
       </Box>
       <Box sx={{ mb: 2 }}>
         <Timeline
+          key={task?.id} // force remount
           tracks={tracks}
           time={time}
           seekToAction={seekTo}
@@ -115,6 +124,8 @@ export default function HomeClient() {
           durationSec={duration || undefined}
           audioSrc={audioSrc}
           isPlaying={isPlaying}
+          taskId={chosenTask?.id}
+          cutMarkers={task?.cut_markers || []}
         />
       </Box>
     </Box>
