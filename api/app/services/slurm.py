@@ -3,7 +3,7 @@ from app.core.config import get_hpc_config, get_directories
 from app.services.hpc_client import HpcClient
 from app.db import SessionLocal
 from app.repositories.task_repository import TaskRepository
-from app.models import Clip, Track
+from app.models import Clip, Track, TaskRecord
 import logging
 from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, ColorClip, concatenate_videoclips
 from app.models import TaskState
@@ -34,7 +34,7 @@ def _set_task_state(
         db.commit()
 
 
-async def run_and_poll_task(task_id: int, additional_prompt: str) -> None:
+async def run_and_poll_task(task_id: int, additional_prompt: str, task: TaskRecord) -> None:
 
     db = SessionLocal()
     try:
@@ -49,7 +49,7 @@ async def run_and_poll_task(task_id: int, additional_prompt: str) -> None:
     finally:
         db.close()
 
-    await run_full_video_job(task_id=task_id, additional_prompt=additional_prompt)
+    await run_full_video_job(task_id=task_id, additional_prompt=additional_prompt, task=task)
 
     await poll_video_segments(
         task_id=task_id,
@@ -93,7 +93,7 @@ async def run_and_poll_scene_task(task_id: str, clip_id: str, scene_number: int,
         )
 
 
-async def run_full_video_job(task_id: int, additional_prompt: str) -> None:
+async def run_full_video_job(task_id: int, additional_prompt: str, task: TaskRecord) -> None:
     directories = get_directories()
     settings = get_hpc_config()
     db = SessionLocal()
@@ -124,6 +124,7 @@ async def run_full_video_job(task_id: int, additional_prompt: str) -> None:
                 remote_dir=remote_dir,
                 remote_audio_path=remote_audio_path,
                 additional_prompt=additional_prompt,
+                task=task,
             )
             await client.sftp_put_text(job_contents, remote_job_script)
 
@@ -257,8 +258,10 @@ async def stage_audio(task_id: str, local_path: str, ext: str) -> None:
         db.close()
 
 
-def full_video_job_script(remote_dir: str, remote_audio_path: str, additional_prompt: str) -> str:
+def full_video_job_script(remote_dir: str, remote_audio_path: str, additional_prompt: str, task: TaskRecord) -> str:
     job_name = f"audio_{Path(remote_dir).name}"
+
+    markers = ",".join(str(m) for m in task.cut_markers) if task.cut_markers else ""
 
     return f"""#!/bin/bash
 #SBATCH --job-name={job_name}
@@ -286,15 +289,12 @@ nvidia-smi
 source /usr/local/minicondas/Miniconda3-py312_25.9.1-3-Linux-aarch64/etc/profile.d/conda.sh
 conda activate /home/brml/DGX1/mycondas/gpu312
 
-# TODO: delete?
-# module load cuda/12.6.3 latex/TexLive24 ffmpeg/7.0.1 cudnn/v9.6.0.74-prod-cuda-12.X
-
-
 cd /home/brml/Music-Visualization-Generation-Pipeline
 
 echo "Running main.py with variables: $TEST_RUN_NAME, $AUDIO_PATH, $RUN_DESCRIPTION, $ADDITIONAL_PROMPT, $FORCED_VIDEO_PROMPT"
+echo "Cut markers: {markers}"
 
-python src/main.py "$TEST_RUN_NAME" "$AUDIO_PATH" "$RUN_DESCRIPTION" "$ADDITIONAL_PROMPT" "$FORCED_VIDEO_PROMPT"
+python src/main.py "$TEST_RUN_NAME" "$AUDIO_PATH" "$RUN_DESCRIPTION" "$ADDITIONAL_PROMPT" "$FORCED_VIDEO_PROMPT" --markers {markers}
 """
 
 

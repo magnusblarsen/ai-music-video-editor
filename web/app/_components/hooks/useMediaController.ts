@@ -3,18 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type MediaControllerOptions = {
-  driftSnapThresholdSec?: number;
-  driftNudgeThresholdSec?: number;
-  driftNudgeAmount?: number;
+  driftThresholdSec?: number;
 
   uiFps?: number;
 };
 
 export function useMediaController(opts: MediaControllerOptions = {}) {
   const {
-    driftSnapThresholdSec = 0.15,
-    driftNudgeThresholdSec = 0.04,
-    driftNudgeAmount = 0.02,
+    driftThresholdSec = 0.15,
     uiFps = 15,
   } = opts;
 
@@ -58,25 +54,16 @@ export function useMediaController(opts: MediaControllerOptions = {}) {
       if (v && a && !v.paused && !a.paused) {
         const diff = v.currentTime - a.currentTime;
 
-        if (Math.abs(diff) > driftSnapThresholdSec) {
-          try {
-            v.currentTime = a.currentTime;
-          } catch { }
-          v.playbackRate = a.playbackRate;
-        } else if (Math.abs(diff) > driftNudgeThresholdSec) {
-          const direction = diff > 0 ? -1 : 1;
-          v.playbackRate = a.playbackRate + direction * driftNudgeAmount;
-        } else {
-          v.playbackRate = a.playbackRate;
+        if (Math.abs(diff) > driftThresholdSec) {
+          v.currentTime = a.currentTime;
         }
+        v.playbackRate = a.playbackRate;
       }
 
       rafIdRef.current = requestAnimationFrame(tickRef.current);
     },
     [
-      driftSnapThresholdSec,
-      driftNudgeThresholdSec,
-      driftNudgeAmount,
+      driftThresholdSec,
       uiFps,
     ]
   );

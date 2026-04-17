@@ -6,10 +6,9 @@ import { formatTimePrecise } from "@/utils/formatTime";
 import { Track } from "@/types/editor";
 import WaveformTrack from "./WaveformTrack";
 import VideoTrack from "./VideoTrack";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { toast } from "sonner";
-import { useGetJson } from "@/hooks/useGetJson";
 
 
 function clamp(v: number, min: number, max: number) {
@@ -36,6 +35,7 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
 
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
+  const queryClient = useQueryClient()
   const [pxPerSecond, setPxPerSecond] = useState(80)
   const [viewportWidth, setViewportWidth] = useState(0);
   const [cutMarkers, setCutMarkers] = useState<number[]>(initialCutMarkers);
@@ -190,6 +190,7 @@ export default function Timeline({ time, seekToAction, playAction, pauseAction, 
     onSuccess: () => {
       setIsDirty(false);
       toast.success("Changes saved successfully");
+      queryClient.invalidateQueries({ queryKey: ["task", taskId] });
     },
     onError: (error) => {
       toast.error(`Failed to save changes: ${error.message}`);

@@ -6,7 +6,7 @@ from app.db import get_db
 from app.repositories.task_repository import TaskRepository
 from app.core.config import get_directories
 from app.services.slurm import stage_audio, run_and_poll_task, poll_video_segments, poll_and_store_videos, compose_videos_on_timeline, run_and_poll_scene_task
-from app.models import TaskState
+from app.models import TaskState, TaskRecord
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.schemas.track import TrackRead
@@ -104,7 +104,7 @@ async def run_task(task_id: str, body: GenerateVideosRequest, background_tasks: 
     db.commit()
 
     background_tasks.add_task(
-        run_and_poll_task, task_id=task_id, additional_prompt=body.additional_prompt)
+        run_and_poll_task, task_id=task_id, additional_prompt=body.additional_prompt, task=task)
 
     return {"ok": True, "task_id": task_id}
 
