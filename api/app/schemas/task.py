@@ -33,3 +33,8 @@ class CutMarkersUpdateRequest(BaseModel):
 class CutMarkersResponse(BaseModel):
     task_id: int
     cut_markers: list[float]
+
+
+class TaskResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int

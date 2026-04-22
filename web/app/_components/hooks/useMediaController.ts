@@ -43,8 +43,8 @@ export function useMediaController(opts: MediaControllerOptions = {}) {
       const source = a ?? v;
 
       if (source) {
-        const minDt = 1000 / uiFps;
-        if (ts - setUiTimeThrottled.current.last >= minDt) {
+        const minDelta = 1000 / uiFps; // convert to ms
+        if (ts - setUiTimeThrottled.current.last >= minDelta) {
           setUiTimeThrottled.current.last = ts;
           setTime(source.currentTime);
         }

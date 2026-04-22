@@ -336,7 +336,7 @@ python src/generate_video_cli.py "$SCENE_NUMBER" "$PROMPT" "$DURATION_SECONDS" "
 
 async def poll_video_segments(
     task_id: int,
-    poll_interval_seconds: float = 30.0,
+    poll_interval_seconds: float = 60.0,
     timeout_seconds: float = 60 * 30,
 ) -> None:
     settings = get_hpc_config()
@@ -555,8 +555,7 @@ async def poll_and_store_videos(task_id: int) -> None:
                     clip.url = str(local_file)
                     db.commit()
 
-        audio_path = str(Path(directories.media)
-                         / "uploads" / f"{task_id}.mp3")
+        audio_path = str(Path(directories.media) / f"{task_id}.mp3")
 
         with SessionLocal() as db:
             clips = (
@@ -584,24 +583,6 @@ async def poll_and_store_videos(task_id: int) -> None:
             error=str(e),
         )
         raise
-
-
-# def concatenate_videos(video_clips: list[Clip], output_path: str, audio_path) -> str:
-#     ordered_clips = sorted(video_clips, key=lambda c: c.start_seconds)
-#     moviepy_clips = []
-#     final_video = None
-#
-#     try:
-#         moviepy_clips = [VideoFileClip(clip.url) for clip in ordered_clips]
-#         final_video = concatenate_videoclips(moviepy_clips, method="compose")
-#         final_video.write_videofile(output_path, codec="libx264", audio_codec="aac")
-#         logger.info(f"Concatenated {len(ordered_clips)} videos into {output_path}")
-#         return output_path
-#     finally:
-#         if final_video:
-#             final_video.close()
-#         for clip in moviepy_clips:
-#             clip.close()
 
 
 def compose_videos_on_timeline(

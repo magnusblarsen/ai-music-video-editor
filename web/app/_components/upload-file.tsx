@@ -4,31 +4,22 @@ import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography, 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { JobState, JobStatus, Task } from "@/types/editor";
+import { Task } from "@/types/editor";
 import ControlsContainer from "@/components/ControlsContainer";
 import axios from "axios";
 
-const stateToLabel: Record<JobState, string> = {
-  "started": "The task has started",
-  "staging": "Uploading audio file",
-  "ready": "Ready to start generating videos",
-  "running": "Making video scripts",
-  "videos_segmented": "Video scripts have been generated. Generating videos now :)",
-  "done": "Done generating videos",
-  "failed": "Failed. Sadness :("
-}
 
 
 type UploadFileProps = {
   file: File | null;
   setFileAction: (file: File | null) => void;
-  jobStatus: JobStatus | null;
-  onProjectSelect: (event: SelectChangeEvent<number>) => void;
   tasks: Task[] | null;
   chosenTask: Task | null;
+  setPendingTaskId: (id: number | null) => void;
+  setSelectedTaskId: (id: number | null) => void;
 }
 
-export default function UploadFile({ file, setFileAction, jobStatus, onProjectSelect, tasks, chosenTask }: UploadFileProps) {
+export default function UploadFile({ file, setFileAction, tasks, chosenTask, setPendingTaskId, setSelectedTaskId }: UploadFileProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -46,19 +37,21 @@ export default function UploadFile({ file, setFileAction, jobStatus, onProjectSe
 
       const { data } = await axios.post("/api/upload-audio", form)
 
-      return data
+      return data;
     },
     onMutate: () => {
       toast.info("Starting upload...");
     },
-    onSuccess: (data) => {
+    onSuccess: (data: Task) => {
       queryClient.invalidateQueries({
-        queryKey: ["status", data.task_id],
+        queryKey: ["status", data.id],
       })
+
       queryClient.invalidateQueries({
         queryKey: ["tasks"],
       })
-      toast.success("Upload successful! Task created with ID: " + data.task_id);
+      toast.success("Upload successful! Task created with ID: " + data.id);
+      setPendingTaskId(data.id);
     },
     onError: (error) => {
       toast.error(`Upload failed: ${error.message}`);
@@ -89,12 +82,13 @@ export default function UploadFile({ file, setFileAction, jobStatus, onProjectSe
         hidden
         onChange={(e) => setFileAction(e.target.files?.[0] ?? null)}
       />
+      <Typography variant="body2">Step 1: Upload music to create a new project (click &quot;create new project&quot;)</Typography>
       <FormControl fullWidth>
         <InputLabel>Project</InputLabel>
         <Select
           value={chosenTask?.id || ""}
           label="Project"
-          onChange={onProjectSelect}
+          onChange={(e: SelectChangeEvent<number>) => setSelectedTaskId(e.target.value)}
         >
           {tasks?.map((task) => (
             <MenuItem key={task.id} value={task.id}>
@@ -134,16 +128,6 @@ export default function UploadFile({ file, setFileAction, jobStatus, onProjectSe
         </DialogContent>
 
       </Dialog>
-      {jobStatus && (
-        <Typography variant="body1" color={jobStatus.state === "failed" ? "error" : "textPrimary"}>
-          Status: {stateToLabel[jobStatus.state]}
-        </Typography>
-      )}
-      {jobStatus?.state == JobState.FAILED && jobStatus?.error && (
-        <Typography color="error">
-          Message: {jobStatus.error}
-        </Typography>
-      )}
     </ControlsContainer>
 
   )

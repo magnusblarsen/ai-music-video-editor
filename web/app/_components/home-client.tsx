@@ -3,7 +3,7 @@
 import { Typography, Box, SelectChangeEvent } from "@mui/material";
 import VideoPlayer from "./video-player";
 import { useState, useEffect, useMemo } from "react";
-import { JobStatus, Task } from "@/types";
+import { JobStatus, Task, JobState } from "@/types";
 import Timeline from "./timeline/timeline";
 import UploadFile from "./upload-file";
 import GenerateVideo from "./generate-video";
@@ -14,17 +14,35 @@ import { useGetJson } from "@/hooks/useGetJson";
 import DebugControls from "./debug-controls";
 
 
+const stateToLabel: Record<JobState, string> = {
+  "started": "The task has started",
+  "staging": "Uploading audio file",
+  "ready": "Ready to start generating videos",
+  "running": "Making video scripts",
+  "videos_segmented": "Video scripts have been generated. Generating videos now :)",
+  "done": "Done generating videos",
+  "failed": "Failed. Sadness :("
+}
+
 export default function HomeClient() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [editedTracks, setEditedTracks] = useState<Track[] | null>(null);
-  const [chosenTask, setChosenTask] = useState<Task | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const [pendingTaskId, setPendingTaskId] = useState<number | null>(null);
+
+  const chosenTaskId = pendingTaskId ?? selectedTaskId;
+
+
+  const { data: tasks } = useGetJson<Task[]>(["tasks"], "/api/tasks");
+
+  const chosenTask = useMemo(() => {
+    if (!chosenTaskId || !tasks) return null;
+    return tasks.find((t) => t.id === chosenTaskId) ?? null;
+  }, [tasks, chosenTaskId])
 
   const videoSrc = useMemo(() => {
     if (!chosenTask) return null;
     return `/api/media/${chosenTask.id}/final_video.mp4`;
   }, [chosenTask])
-
-  const { data: tasks } = useGetJson<Task[]>(["tasks"], "/api/tasks");
 
   async function fetchStatus(id: number): Promise<JobStatus> {
     const res = await fetch(`/api/status/${id}`, { cache: "no-store" });
@@ -48,6 +66,11 @@ export default function HomeClient() {
   })
 
 
+  function onSetSelectedTaskId(id: number | null) {
+    setSelectedTaskId(id);
+    setPendingTaskId(null);
+  }
+
   const jobStatus = statusQuery.data as JobStatus | null;
 
   const { data: fetchedTracks, isLoading: tracksLoading, error: tracksError } = useGetJson<Track[]>(
@@ -68,7 +91,7 @@ export default function HomeClient() {
     }
   );
 
-  const tracks = editedTracks ?? fetchedTracks ?? []
+  const tracks = fetchedTracks ?? []
 
   const { setAudioSrc, videoRef, audioRef, time, seekTo, play, pause, duration, isPlaying, audioSrc } = useMediaController()
 
@@ -79,29 +102,35 @@ export default function HomeClient() {
   }, [chosenTask?.id, setAudioSrc])
 
 
-  function onProjectSelect(e: SelectChangeEvent<number>) {
-    const task = tasks?.find((t) => t.id === e.target.value) ?? null;
-    setChosenTask(task);
-    setEditedTracks(null)
-  }
-
   return (
     <Box sx={{ display: "flex", flexDirection: "column", justifyContent: 'space-between', minHeight: "100vh" }} >
-      {/* <Box sx={{ height: '70%', display: "flex", flexDirection: "row", minHeight: 0 }} > */}
       <Box sx={{ display: "flex", flexDirection: "row", minHeight: 0 }} >
         <Box className="flex-1 min-w-0 min-h-0 p-2">
           <Typography variant="h4" gutterBottom>
             Generate videos
           </Typography>
+          {jobStatus && (
+            <Typography variant="body1" color={jobStatus.state === "failed" ? "error" : "textPrimary"}>
+              Status: {stateToLabel[jobStatus.state]}
+            </Typography>
+          )}
+          {jobStatus?.state == JobState.FAILED && jobStatus?.error && (
+            <Typography color="error">
+              Message: {jobStatus.error}
+            </Typography>
+          )}
+          <Typography variant="body1" sx={{ my: 2 }}>
+            Generating a video takes approximately 4 hours.
+          </Typography>
           <UploadFile
             tasks={tasks || null}
             chosenTask={chosenTask}
-            onProjectSelect={onProjectSelect}
+            setPendingTaskId={setPendingTaskId}
+            setSelectedTaskId={onSetSelectedTaskId}
             file={audioFile}
             setFileAction={setAudioFile}
-            jobStatus={jobStatus}
           />
-          <GenerateVideo taskId={chosenTask?.id || null} jobStatus={jobStatus} />
+          <GenerateVideo taskId={chosenTask?.id || null} jobStatus={jobStatus} task={task} />
           <DebugControls chosenTask={chosenTask} />
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, mt: 2 }}>

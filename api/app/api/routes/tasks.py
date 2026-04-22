@@ -6,11 +6,11 @@ from app.db import get_db
 from app.repositories.task_repository import TaskRepository
 from app.core.config import get_directories
 from app.services.slurm import stage_audio, run_and_poll_task, poll_video_segments, poll_and_store_videos, compose_videos_on_timeline, run_and_poll_scene_task
-from app.models import TaskState, TaskRecord
+from app.models import TaskState
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.schemas.track import TrackRead
-from app.schemas.task import GenerateVideosRequest, RegenerateVideoRequest, CutMarkersUpdateRequest, CutMarkersResponse
+from app.schemas.task import GenerateVideosRequest, RegenerateVideoRequest, CutMarkersUpdateRequest, CutMarkersResponse, TaskResponse
 
 from app.models import Track, Clip
 
@@ -33,7 +33,7 @@ async def get_tasks(db=Depends(get_db)):
     return repo.list()
 
 
-@router.post("/upload-audio")
+@router.post("/upload-audio", response_model=TaskResponse)
 async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[UploadFile, File()], db=Depends(get_db)):
     if not file.content_type or not file.content_type.startswith("audio/"):
         raise HTTPException(
