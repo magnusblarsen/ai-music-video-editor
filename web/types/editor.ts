@@ -40,4 +40,5 @@ export type Task = {
   updated_at: string;
   cut_markers: number[];
   additional_prompt: string | null;
+  name: string;
 }

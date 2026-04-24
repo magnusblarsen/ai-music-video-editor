@@ -60,6 +60,8 @@ class TaskRecord(Base):
 
     additional_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+
 
 class Track(Base):
     __tablename__ = "tracks"

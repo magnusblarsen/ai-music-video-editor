@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.models import TaskState
 
 
-class TaskRecord(BaseModel):
+class TaskSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -14,6 +14,11 @@ class TaskRecord(BaseModel):
     error: str | None = None
     created_at: datetime
     updated_at: datetime
+    name: str
+
+
+class EditProjectRequest(BaseModel):
+    name: str
 
 
 class GenerateVideosRequest(BaseModel):

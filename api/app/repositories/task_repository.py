@@ -8,8 +8,8 @@ class TaskRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def create(self) -> TaskRecord:
-        task = TaskRecord()
+    def create(self, name: str | None = None) -> TaskRecord:
+        task = TaskRecord(name=name)
         self.db.add(task)
         self.db.flush()
         return task

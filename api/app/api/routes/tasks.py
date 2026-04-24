@@ -10,7 +10,7 @@ from app.models import TaskState
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.schemas.track import TrackRead
-from app.schemas.task import GenerateVideosRequest, RegenerateVideoRequest, CutMarkersUpdateRequest, CutMarkersResponse, TaskResponse
+from app.schemas.task import GenerateVideosRequest, RegenerateVideoRequest, CutMarkersUpdateRequest, CutMarkersResponse, TaskResponse, TaskSchema, EditProjectRequest
 
 from app.models import Track, Clip
 
@@ -41,12 +41,15 @@ async def upload_audio(background_tasks: BackgroundTasks, file: Annotated[Upload
 
     directories = get_directories()
 
+    original_name = Path(file.filename).stem if file.filename else "Untitled"
     ext = Path(file.filename).suffix if file.filename else ""
 
     repo = TaskRepository(db)
-    task = repo.create()
+    task = repo.create(name=original_name)
     task_id = str(task.id)
     local_path = directories.media / f"{task_id}{ext}"
+
+    task.name = original_name
 
     try:
         with local_path.open("wb") as out:
@@ -260,3 +263,18 @@ async def save_cut_markers(task_id: int, body: CutMarkersUpdateRequest, db=Depen
         task_id=task.id,
         cut_markers=task.cut_markers,
     )
+
+
+@router.put("/tasks/{task_id}")
+async def update_task_name(task_id: int, body: EditProjectRequest, db=Depends(get_db)):
+    repo = TaskRepository(db)
+    task = repo.get(task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    task.name = body.name
+    db.commit()
+    db.refresh(task)
+
+    return {}

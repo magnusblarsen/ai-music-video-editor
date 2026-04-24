@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Box } from "@mui/material";
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Box, FormLabel, TextField } from "@mui/material";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -22,7 +22,9 @@ type UploadFileProps = {
 export default function UploadFile({ file, setFileAction, tasks, chosenTask, setPendingTaskId, setSelectedTaskId }: UploadFileProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [openCreateProject, setOpenCreateProject] = useState(false);
+  const [openEditProject, setOpenEditProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState(chosenTask?.name || "");
 
   const handleSelectClick = () => {
     inputRef.current?.click();
@@ -31,7 +33,7 @@ export default function UploadFile({ file, setFileAction, tasks, chosenTask, set
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
-      setOpen(false);
+      setOpenCreateProject(false);
       const form = new FormData();
       form.append("file", file);
 
@@ -56,6 +58,21 @@ export default function UploadFile({ file, setFileAction, tasks, chosenTask, set
     onError: (error) => {
       toast.error(`Upload failed: ${error.message}`);
     }
+  })
+
+  const saveProjectMutation = useMutation({
+    mutationFn: async ({ name }: { name: string }) => {
+      if (!chosenTask) return
+      const response = await axios.put(`/api/tasks/${chosenTask.id}`, { name: name });
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success("Project updated successfully");
+      setOpenEditProject(false)
+      queryClient.invalidateQueries({
+        queryKey: ["tasks"],
+      })
+    },
   })
 
   const deleteMutation = useMutation({
@@ -92,20 +109,23 @@ export default function UploadFile({ file, setFileAction, tasks, chosenTask, set
         >
           {tasks?.map((task) => (
             <MenuItem key={task.id} value={task.id}>
-              {task.id}
+              {task.name} (id: {task.id})
             </MenuItem>
           ))}
         </Select>
       </FormControl>
       <Box sx={{ display: "flex", gap: 2 }}>
-        <Button variant="contained" onClick={() => setOpen(true)}>
+        <Button variant="contained" onClick={() => setOpenCreateProject(true)}>
           Create new project
+        </Button>
+        <Button variant="outlined" onClick={() => setOpenEditProject(true)} disabled={!chosenTask}>
+          Edit project
         </Button>
         <Button variant="outlined" color="error" onClick={() => deleteMutation.mutate(chosenTask!.id)}>
           Delete project
         </Button>
       </Box>
-      <Dialog open={open} onClose={() => setOpen(false)}>
+      <Dialog open={openCreateProject} onClose={() => setOpenCreateProject(false)}>
         <DialogTitle>Upload audio file to make new project</DialogTitle>
         <DialogContent>
 
@@ -127,6 +147,15 @@ export default function UploadFile({ file, setFileAction, tasks, chosenTask, set
 
         </DialogContent>
 
+      </Dialog>
+      <Dialog open={openEditProject} onClose={() => setOpenEditProject(false)}>
+        <DialogTitle>Edit project</DialogTitle>
+        <DialogContent>
+          <TextField sx={{ m: 2 }} label="Project name" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} />
+        </DialogContent>
+        <DialogActions>
+          <Button variant="outlined" onClick={() => saveProjectMutation.mutate({ name: newProjectName })}>Save changes</Button>
+        </DialogActions>
       </Dialog>
     </ControlsContainer>
 
