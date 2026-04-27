@@ -11,6 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.schemas.track import TrackRead
 from app.schemas.task import GenerateVideosRequest, RegenerateVideoRequest, CutMarkersUpdateRequest, CutMarkersResponse, TaskResponse, TaskSchema, EditProjectRequest
+import subprocess
+from fastapi.responses import FileResponse
 
 from app.models import Track, Clip
 
@@ -278,3 +280,17 @@ async def update_task_name(task_id: int, body: EditProjectRequest, db=Depends(ge
     db.refresh(task)
 
     return {}
+
+
+@router.get("/tasks/{task_id}/export")
+def export_video(task_id: int, db=Depends(get_db)):
+    video_path = get_directories().media / str(task_id) / "final_video.mp4"
+
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    return FileResponse(
+        path=video_path,
+        media_type="video/mp4",
+        filename=f"task-{task_id}-final_video.mp4",
+    )

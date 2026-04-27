@@ -88,6 +88,33 @@ export default function UploadFile({ file, setFileAction, tasks, chosenTask, set
     }
   })
 
+  const exportVideo = async () => {
+    if (!chosenTask) {
+      return;
+    }
+
+    try {
+      const response = await axios.get(`/api/tasks/${chosenTask.id}/export`, {
+        responseType: "blob",
+      });
+
+      const blob = new Blob([response.data], { type: "video/mp4" });
+      const url = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${chosenTask.name || `task-${chosenTask.id}`}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success("Video exported");
+    } catch (error) {
+      toast.error("Failed to export video");
+    }
+  };
 
 
   return (
@@ -114,7 +141,7 @@ export default function UploadFile({ file, setFileAction, tasks, chosenTask, set
           ))}
         </Select>
       </FormControl>
-      <Box sx={{ display: "flex", gap: 2 }}>
+      <Box sx={{ display: "flex", gap: 2, width: "100%" }}>
         <Button variant="contained" onClick={() => setOpenCreateProject(true)}>
           Create new project
         </Button>
@@ -123,6 +150,9 @@ export default function UploadFile({ file, setFileAction, tasks, chosenTask, set
         </Button>
         <Button variant="outlined" color="error" onClick={() => deleteMutation.mutate(chosenTask!.id)}>
           Delete project
+        </Button>
+        <Button variant="contained" sx={{ ml: "auto" }} onClick={exportVideo} disabled={!chosenTask}>
+          Export video
         </Button>
       </Box>
       <Dialog open={openCreateProject} onClose={() => setOpenCreateProject(false)}>

@@ -336,8 +336,8 @@ python src/generate_video_cli.py "$SCENE_NUMBER" "$PROMPT" "$DURATION_SECONDS" "
 
 async def poll_video_segments(
     task_id: int,
-    poll_interval_seconds: float = 60.0,
-    timeout_seconds: float = 60 * 30,
+    poll_interval_seconds: float = 60.0 * 5,
+    timeout_seconds: float = 60 * 60,  # 1 hour
 ) -> None:
     settings = get_hpc_config()
     directories = get_directories()
