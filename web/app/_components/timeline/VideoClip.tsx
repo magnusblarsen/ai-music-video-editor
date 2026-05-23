@@ -82,6 +82,7 @@ export default function VideoClip({ pxPerSecond, clip, index }: Props) {
       toast.error(`Failed: ${err.message}`);
     },
     onSuccess: () => {
+      setOpen(false)
       toast.success("Scene generation started");
     }
   })

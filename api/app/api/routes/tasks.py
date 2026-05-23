@@ -100,14 +100,6 @@ async def run_task(task_id: str, body: GenerateVideosRequest, background_tasks: 
         raise HTTPException(
             status_code=400, detail=f"Task not ready to run (current state: {task.state})")
 
-    repo.update_state(
-        task_id,
-        state=TaskState.running,
-        message="Submitting Slurm job",
-        progress=0,
-    )
-    db.commit()
-
     background_tasks.add_task(
         run_and_poll_task, task_id=task_id, additional_prompt=body.additional_prompt, task=task)
 
@@ -167,11 +159,11 @@ async def poll_videos(task_id: int, background_tasks: BackgroundTasks, db=Depend
 
     if not task:
         raise HTTPException(status_code=404, detail="Not found")
-    if task.state not in {TaskState.videos_segmented, TaskState.failed, TaskState.done}:
+    if task.state not in {TaskState.videos_segmented, TaskState.failed, TaskState.done, TaskState.running}:
         raise HTTPException(
             status_code=400, detail=f"Task not ready to poll videos (current state: {task.state})")
 
-    background_tasks.add_task(poll_and_store_videos, task_id=task_id)
+    background_tasks.add_task(poll_and_store_videos, task_id=task_id, job_id=task.job_id)
 
     return {"ok": True, "task_id": task_id}
 

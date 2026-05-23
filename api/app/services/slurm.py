@@ -55,7 +55,7 @@ async def run_and_poll_task(task_id: int, additional_prompt: str, task: TaskReco
         task_id=task_id,
     )
 
-    await poll_and_store_videos(task_id)
+    await poll_and_store_videos(task_id, job_id=task.job_id)
 
 
 async def run_and_poll_scene_task(task_id: str, clip_id: str, scene_number: int, prompt: str, duration_seconds: float) -> None:
@@ -243,6 +243,8 @@ async def stage_audio(task_id: str, local_path: str, ext: str) -> None:
                 message="Uploaded Audio",
                 progress=100
             )
+            logger.info("Audio file uploaded to HPC for task %s: %s -> %s",
+                        task_id, local_path, remote_audio_path)
             db.commit()
 
     except Exception as e:
@@ -280,7 +282,7 @@ set -euo pipefail
 TEST_RUN_NAME="test_run_{Path(remote_dir).name}"
 AUDIO_PATH="{remote_audio_path}"
 RUN_DESCRIPTION="LALM test"
-ADDITIONAL_PROMPT="{additional_prompt}"
+ADDITIONAL_PROMPT={shlex.quote(additional_prompt)}
 FORCED_VIDEO_PROMPT=""
 
 echo "Running on $(hostname)"
@@ -336,7 +338,7 @@ python src/generate_video_cli.py "$SCENE_NUMBER" "$PROMPT" "$DURATION_SECONDS" "
 
 async def poll_video_segments(
     task_id: int,
-    poll_interval_seconds: float = 60.0 * 5,
+    poll_interval_seconds: float = 60.0 * 10,
     timeout_seconds: float = 60 * 60,  # 1 hour
 ) -> None:
     settings = get_hpc_config()
@@ -450,7 +452,7 @@ async def _wait_for_remote_file(
 
 async def wait_for_slurm_completion(
     job_id: str,
-    poll_interval_seconds: float = 30.0,
+    poll_interval_seconds: float = 60 * 30.0,
     timeout_seconds: float = 60 * 60 * 12,
 ) -> None:
     settings = get_hpc_config()
@@ -492,7 +494,7 @@ async def wait_for_slurm_completion(
     raise TimeoutError(f"Timed out waiting for Slurm job {job_id} to complete")
 
 
-async def poll_and_store_videos(task_id: int) -> None:
+async def poll_and_store_videos(task_id: int, job_id: int) -> None:
     settings = get_hpc_config()
     directories = get_directories()
 
@@ -503,15 +505,26 @@ async def poll_and_store_videos(task_id: int) -> None:
         / f"test_run_{task_id}"
     )
 
-    # remote_manifest = remote_output_dir / "segments.json"
-    remote_manifest = remote_output_dir / "manifest.json"  # TODO: use this
+    try:
+        wait_for_slurm_completion(str(job_id))
+    except Exception as e:
+        _set_task_state(
+            task_id,
+            state=TaskState.failed,
+            message="Slurm job failed or timed out",
+            progress=100,
+            error=str(e),
+        )
+        raise
+
+    remote_manifest = remote_output_dir / "manifest.json"
 
     try:
         manifest_text = await _wait_for_remote_file(
             settings=settings,
             remote_result_file=remote_manifest,
-            poll_interval_seconds=30.0,
-            timeout_seconds=60 * 30,
+            poll_interval_seconds=30.0 * 60,
+            timeout_seconds=60 * 60 * 10,
         )
 
         payload = json.loads(manifest_text)
@@ -597,6 +610,7 @@ def compose_videos_on_timeline(
     )
     if not ordered_clips:
         raise ValueError("No clips with valid URLs provided")
+
     moviepy_clips = []
     source_clips = []
     audio_clip = None
@@ -608,9 +622,8 @@ def compose_videos_on_timeline(
         source_clips.append(first_source)
 
         base_size = first_source.size
-        # Error if duration_seconds is lower than video
-        first_usable_duration = min(
-            first_db_clip.duration_seconds, first_source.duration)
+
+        first_usable_duration = min(first_db_clip.duration_seconds, first_source.duration)
 
         first_timeline_clip = (
             first_source
