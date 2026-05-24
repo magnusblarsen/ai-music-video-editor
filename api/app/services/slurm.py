@@ -506,7 +506,7 @@ async def poll_and_store_videos(task_id: int, job_id: int) -> None:
     )
 
     try:
-        wait_for_slurm_completion(str(job_id))
+        await wait_for_slurm_completion(str(job_id))
     except Exception as e:
         _set_task_state(
             task_id,

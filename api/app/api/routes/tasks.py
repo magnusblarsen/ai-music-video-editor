@@ -151,7 +151,6 @@ async def get_tracks(task_id: int, db=Depends(get_db)):
     return tracks
 
 
-# NOTE: one small problem: May poll the same videos concurrently if multiple requests.
 @router.post("/tasks/{task_id}/poll-videos")
 async def poll_videos(task_id: int, background_tasks: BackgroundTasks, db=Depends(get_db)):
     repo = TaskRepository(db)
